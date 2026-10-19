@@ -6,6 +6,10 @@ An Android accessibility service that maps wired/Bluetooth headset key presses t
 
 > 仅支持 Android 12+（minSdk 31），在 Xiaomi 14 / HyperOS（Android 16）上实机验证。
 
+<p align="center">
+  <img src="docs/screenshots/main.jpg" width="320" alt="PodSkip 主界面" />
+</p>
+
 ## 特性
 
 - **单击 / 双击 / 三击**：单键耳机（只发 `KEYCODE_HEADSETHOOK`）也能区分，判定窗口可调（200–600 ms，默认 400 ms）。
