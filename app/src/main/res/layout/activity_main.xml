@@ -116,7 +116,7 @@
                         style="@style/TextLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="始终后台保活" />
+                        android:text="保活通知" />
 
                     <TextView
                         android:id="@+id/keepalive_hint"
@@ -124,14 +124,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="3dp"
-                        android:text="只在看剧时接管，退出白名单应用 1 分钟后自动撤掉通知" />
+                        android:text="接管期间通知栏常驻一条提示，防止系统冻结监听服务" />
                 </LinearLayout>
-
-                <androidx.appcompat.widget.SwitchCompat
-                    android:id="@+id/switch_keepalive"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="12dp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

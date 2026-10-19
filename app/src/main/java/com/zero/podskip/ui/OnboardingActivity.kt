@@ -17,7 +17,6 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.SwitchCompat
 import com.zero.podskip.R
 import com.zero.podskip.Settings
 import com.zero.podskip.core.KeyProbe
@@ -37,7 +36,6 @@ class OnboardingActivity : AppCompatActivity() {
     private lateinit var a11yStatus: TextView
     private lateinit var notifyStatus: TextView
     private lateinit var btnNotify: Button
-    private lateinit var switchKeepAlive: SwitchCompat
     private lateinit var keepAliveHint: TextView
     private lateinit var keyStatus: TextView
     private lateinit var gestureStatus: TextView
@@ -76,7 +74,6 @@ class OnboardingActivity : AppCompatActivity() {
         a11yStatus = findViewById(R.id.a11y_status)
         notifyStatus = findViewById(R.id.notify_status)
         btnNotify = findViewById(R.id.btn_notify)
-        switchKeepAlive = findViewById(R.id.switch_keepalive_onboarding)
         keepAliveHint = findViewById(R.id.keepalive_hint)
         keyStatus = findViewById(R.id.key_status)
         gestureStatus = findViewById(R.id.gesture_status)
@@ -90,13 +87,7 @@ class OnboardingActivity : AppCompatActivity() {
             startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))
         }
         btnNotify.setOnClickListener { onNotifyButtonClick() }
-        switchKeepAlive.isChecked = Settings.keepAliveAlways
-        switchKeepAlive.setOnCheckedChangeListener { _, checked ->
-            Settings.keepAliveAlways = checked
-            keepAliveHint.text = keepAliveText(checked)
-            SwipeKeyService.instance?.refreshForeground()
-        }
-        keepAliveHint.text = keepAliveText(Settings.keepAliveAlways)
+        keepAliveHint.text = keepAliveText()
 
         findViewById<Button>(R.id.btn_key_test).setOnClickListener {
             startActivity(Intent(this, KeyTestActivity::class.java))
@@ -179,16 +170,13 @@ class OnboardingActivity : AppCompatActivity() {
             notifyStatus.setTextColor(getColor(R.color.warning))
             btnNotify.text = if (notifyAsked) "去系统设置打开通知" else "允许通知"
         }
-        if (switchKeepAlive.isChecked != Settings.keepAliveAlways) {
-            switchKeepAlive.isChecked = Settings.keepAliveAlways
-        }
-        keepAliveHint.text = keepAliveText(Settings.keepAliveAlways)
+        keepAliveHint.text = keepAliveText()
     }
 
-    private fun keepAliveText(always: Boolean): String = if (always) {
-        "始终保活：通知一直保留，不看剧也不撤。服务最不容易被系统清掉，代价是常驻一条通知、耗电略高。"
+    private fun keepAliveText(): String = if (hasNotifPermission()) {
+        "通知已允许：接管开启后通知栏会常驻运行状态。"
     } else {
-        "按需保活（推荐）：只在白名单应用打开时挂通知，退出 1 分钟后自动撤掉，不看剧时完全不占前台。"
+        "⚠ 通知未允许：通知栏不会显示运行状态，服务更容易被系统冻结，按键会时灵时不灵。"
     }
 
     private fun onNotifyButtonClick() {

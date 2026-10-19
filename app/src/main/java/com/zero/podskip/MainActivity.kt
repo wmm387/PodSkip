@@ -27,8 +27,8 @@ class MainActivity : AppCompatActivity() {
 
     private val notifPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            keepAliveHintView?.text = keepAliveText(Settings.keepAliveAlways)
             if (granted) SwipeKeyService.instance?.refreshForeground()
+            keepAliveHintView?.text = keepAliveText()
         }
 
     private var keepAliveHintView: TextView? = null
@@ -72,21 +72,9 @@ class MainActivity : AppCompatActivity() {
             refreshStatus()
         }
 
-        val switchKeepAlive = findViewById<SwitchCompat>(R.id.switch_keepalive)
         val keepAliveHint = findViewById<TextView>(R.id.keepalive_hint)
         keepAliveHintView = keepAliveHint
-        switchKeepAlive.isChecked = Settings.keepAliveAlways
-        switchKeepAlive.setOnCheckedChangeListener { _, checked ->
-            Settings.keepAliveAlways = checked
-            keepAliveHint.text = keepAliveText(checked)
-            // 没有通知权限时保活是无效的，顺手把权限要了
-            if (checked && !hasNotifPermission()) {
-                notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-            // 立即生效，不用等下一次切窗口
-            SwipeKeyService.instance?.refreshForeground()
-        }
-        keepAliveHint.text = keepAliveText(Settings.keepAliveAlways)
+        keepAliveHint.text = keepAliveText()
 
         findViewById<Button>(R.id.btn_gesture).setOnClickListener {
             startActivity(Intent(this, GestureSettingsActivity::class.java))
@@ -116,7 +104,7 @@ class MainActivity : AppCompatActivity() {
             suppressToggle = false
         }
         refreshStatus()
-        keepAliveHintView?.text = keepAliveText(Settings.keepAliveAlways)
+        keepAliveHintView?.text = keepAliveText()
         uiHandler.removeCallbacks(ticker)
         uiHandler.post(ticker)
     }
@@ -126,14 +114,10 @@ class MainActivity : AppCompatActivity() {
         uiHandler.removeCallbacks(ticker)
     }
 
-    private fun keepAliveText(always: Boolean): String {
-        val base = if (always) {
-            "任何时候都保持后台运行，通知常驻，耗电略高"
-        } else {
-            "只在看剧时接管，退出白名单应用 1 分钟后自动撤掉通知"
-        }
+    private fun keepAliveText(): String {
+        val base = "接管开启期间通知栏常驻一条提示，防止系统把监听服务冻结"
         return if (hasNotifPermission()) base
-        else "$base\n⚠ 通知权限未开，保活不会生效——到「设置 → 重新查看开启引导」第 2 步允许通知。"
+        else "$base\n⚠ 通知权限未开，通知不会显示，服务容易被系统冻结——到「设置 → 重新查看开启引导」第 2 步允许通知。"
     }
 
     private fun hasNotifPermission(): Boolean =

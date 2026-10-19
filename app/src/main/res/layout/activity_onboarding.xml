@@ -83,25 +83,14 @@
                 android:layout_marginTop="14dp"
                 android:text="允许通知" />
 
-            <LinearLayout
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="24dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="始终后台保活（可选）"
-                    android:textSize="14sp" />
-
-                <androidx.appcompat.widget.SwitchCompat
-                    android:id="@+id/switch_keepalive_onboarding"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" />
-            </LinearLayout>
+                android:lineSpacingExtra="4dp"
+                android:text="接管开启后，通知栏会常驻一条「按键监听中」提示 —— 它是保住服务不被系统冻结的关键；关掉通知，按键就会时灵时不灵。"
+                android:textColor="@color/on_surface_variant"
+                android:textSize="14sp" />
 
             <TextView
                 android:id="@+id/keepalive_hint"

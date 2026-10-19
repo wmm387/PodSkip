@@ -12,8 +12,6 @@ import android.content.res.Configuration
 import android.graphics.Path
 import android.hardware.display.DisplayManager
 import android.media.AudioManager
-import android.os.Handler
-import android.os.Looper
 import android.os.SystemClock
 import android.view.Display
 import android.view.KeyEvent
@@ -51,19 +49,13 @@ class SwipeKeyService : AccessibilityService() {
         instance = this
         Settings.init(this)
         // 默认不常驻：等白名单 App 出现在前台时再挂前台通知
-        if (Settings.keepAliveAlways) goForeground(null)
+        if (Settings.enabled) goForeground(fgPkg.takeIf { it.isNotEmpty() })
         wearDetector = WearDetector(this, ::onHeadsetOff, ::onHeadsetOn).also { it.start() }
     }
 
-    /** 设置改动后立即重算前台通知状态（常驻 / 按需 / 撤销） */
+    /** 设置改动后立即重算前台通知状态（开着就常驻，关掉才撤） */
     fun refreshForeground() {
-        val pkg = fgPkg.takeIf { it.isNotEmpty() }
-        fgHandler.removeCallbacks(stopForegroundTask)
-        if (Settings.keepAliveAlways) {
-            goForeground(pkg)
-        } else {
-            syncForeground(pkg)
-        }
+        syncForeground(fgPkg.takeIf { it.isNotEmpty() })
     }
 
     /** 当前是否已挂前台通知 */
@@ -72,42 +64,27 @@ class SwipeKeyService : AccessibilityService() {
     /** 前台通知里正在显示的应用 */
     private var notifiedPkg: String? = null
 
-    private val fgHandler = Handler(Looper.getMainLooper())
+    /**
+     * 保活通知始终和「总开关」绑定：
+     * 开关开着就常驻一条通知（前台服务），关掉才撤。
+     * 之前做成「只在白名单应用前台时才挂」，结果是服务在后台被系统冻结，
+     * 连窗口事件都收不到，永远等不到「白名单应用出现」那一刻，直接死锁。
+     */
+    private fun syncForeground(pkg: String?) {
+        if (Settings.enabled) {
+            if (!fgActive || notifiedPkg != pkg) goForeground(pkg)
+        } else if (fgActive) {
+            stopForegroundService()
+        }
+    }
 
-    private val stopForegroundTask = Runnable {
-        if (Settings.keepAliveAlways) return@Runnable
+    private fun stopForegroundService() {
         try {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } catch (_: Throwable) {
         }
         fgActive = false
         notifiedPkg = null
-    }
-
-    /**
-     * 按需保活：白名单 App 在前台时才挂前台通知，离开 1 分钟后自动撤掉。
-     * MIUI 的 SmartPower 会把后台空闲的无障碍服务直接解绑
-     * （日志：SmartPower background->idle ... service unbind），
-     * 前台优先级是代码层面唯一能做的抵抗，但只在真正用得上时才挂。
-     */
-    private fun syncForeground(pkg: String?) {
-        val watching = Settings.enabled && pkg != null && pkg in Settings.whitelist
-        when {
-            watching -> {
-                fgHandler.removeCallbacks(stopForegroundTask)
-                if (!fgActive || notifiedPkg != pkg) goForeground(pkg)
-            }
-
-            Settings.keepAliveAlways -> {
-                fgHandler.removeCallbacks(stopForegroundTask)
-                if (!fgActive) goForeground(null)
-            }
-
-            fgActive -> {
-                fgHandler.removeCallbacks(stopForegroundTask)
-                fgHandler.postDelayed(stopForegroundTask, 60_000)
-            }
-        }
     }
 
     private fun goForeground(pkg: String?) {
@@ -159,10 +136,11 @@ class SwipeKeyService : AccessibilityService() {
 
     override fun onServiceConnected() {
         instance = this
+        android.util.Log.d(TAG, "service connected")
         serviceInfo = serviceInfo.apply {
             flags = flags or AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS
         }
-        if (Settings.keepAliveAlways) goForeground(null)
+        if (Settings.enabled) goForeground(fgPkg.takeIf { it.isNotEmpty() })
     }
 
     override fun onDestroy() {
@@ -173,6 +151,7 @@ class SwipeKeyService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        android.util.Log.d(TAG, "evt=${event?.eventType} pkg=${event?.packageName} fg=$fgPkg")
         if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
         if (pkg in systemOverlays) return
@@ -184,6 +163,11 @@ class SwipeKeyService : AccessibilityService() {
     }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
+        android.util.Log.d(
+            TAG,
+            "key=${event.keyCode} act=${event.action} rep=${event.repeatCount} fg=$fgPkg " +
+                "enabled=${Settings.enabled} wl=${Settings.whitelist.size}"
+        )
         val hookKey = event.keyCode == KeyEvent.KEYCODE_HEADSETHOOK ||
             event.keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
 
@@ -206,6 +190,7 @@ class SwipeKeyService : AccessibilityService() {
             return false
         }
         if (fgPkg !in Settings.whitelist) {
+            android.util.Log.d(TAG, "blocked: fg=$fgPkg not in whitelist")
             swallowChain = false
             return false
         }
@@ -237,6 +222,7 @@ class SwipeKeyService : AccessibilityService() {
                     false
                 } else {
                     MultiTap.feed(Settings.tapWindowMs) { tap ->
+                        android.util.Log.d(TAG, "resolved tap=$tap")
                         when (tap) {
                             Tap.SINGLE -> singleTapGesture()
                             Tap.DOUBLE -> swipe(up = true)
@@ -348,7 +334,7 @@ class SwipeKeyService : AccessibilityService() {
                 GestureDescription.StrokeDescription(path, 0L, Settings.swipeDurationMs)
             )
             .build()
-        dispatchGesture(gesture, null, null)
+        android.util.Log.d(TAG, "dispatch ok=" + dispatchGesture(gesture, null, null))
     }
 
     /** 一次「点画面」：竖屏单击，横屏（播放器要双击才暂停）改成双击 */
@@ -362,7 +348,7 @@ class SwipeKeyService : AccessibilityService() {
         val gesture = GestureDescription.Builder()
             .addStroke(GestureDescription.StrokeDescription(path, 0L, 60L))
             .build()
-        dispatchGesture(gesture, null, null)
+        android.util.Log.d(TAG, "dispatch ok=" + dispatchGesture(gesture, null, null))
     }
 
     /**
@@ -380,7 +366,7 @@ class SwipeKeyService : AccessibilityService() {
             .addStroke(GestureDescription.StrokeDescription(first, 0L, 50L))
             .addStroke(GestureDescription.StrokeDescription(second, 120L, 50L))
             .build()
-        dispatchGesture(gesture, null, null)
+        android.util.Log.d(TAG, "dispatch ok=" + dispatchGesture(gesture, null, null))
     }
 
     override fun onInterrupt() {}

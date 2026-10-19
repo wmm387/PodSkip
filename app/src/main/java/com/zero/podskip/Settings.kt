@@ -139,17 +139,6 @@ object Settings {
         }
 
     /**
-     * 是否始终后台保活。
-     * false（默认）= 只在白名单 App 在前台时挂前台通知，离开 1 分钟后自动撤销，
-     * 不看剧时就不占前台优先级。
-     */
-    var keepAliveAlways: Boolean
-        get() = sp.getBoolean("keep_alive_always", false)
-        set(value) {
-            sp.edit().putBoolean("keep_alive_always", value).apply()
-        }
-
-    /**
      * 引导是否已经走完过一次。
      * 只有从未走过引导（或服务没开过）才自动跳引导；走过一次之后
      * 就算系统把无障碍解绑了，也只停在主页提示，不再硬跳。
