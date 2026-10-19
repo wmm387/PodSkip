@@ -156,5 +156,14 @@
             android:layout_marginTop="26dp"
             android:text="只在白名单应用内接管按键，其他场景按键行为与未安装时一致" />
 
+        <TextView
+            android:id="@+id/version"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:gravity="center"
+            android:textColor="@color/on_surface_faint"
+            android:textSize="12sp" />
+
     </LinearLayout>
 </ScrollView>

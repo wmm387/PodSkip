@@ -79,6 +79,15 @@ cp keystore.properties.example keystore.properties
 
 > 换签名会导致无法覆盖安装：release 和 debug 签名不同，两个包不能互相覆盖，先 `adb uninstall com.zero.podskip` 再装另一个。
 
+### 版本号
+
+版本号只在根目录 `gradle.properties` 里改，构建脚本和主页底部显示都读这两个值：
+
+```properties
+VERSION_CODE=1        # 每次发版 +1，否则系统视为同一个包，装不上
+VERSION_NAME=0.1.0    # 展示用，主页底部显示 v0.1.0 (1)
+```
+
 ## 使用
 
 1. 打开 App，按引导走完：开无障碍 → 允许通知 → 按键测试 → 手势参数 → 选应用。

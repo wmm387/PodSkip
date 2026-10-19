@@ -22,8 +22,14 @@ android {
         applicationId = "com.zero.podskip"
         minSdk = 31
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        // 版本号统一在根目录 gradle.properties 里改，避免两处不同步
+        versionCode = providers.gradleProperty("VERSION_CODE").get().toInt()
+        versionName = providers.gradleProperty("VERSION_NAME").get()
+    }
+
+    buildFeatures {
+        // 主页要显示版本号，需要 BuildConfig
+        buildConfig = true
     }
 
     signingConfigs {

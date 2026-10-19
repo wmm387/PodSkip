@@ -49,6 +49,8 @@ class MainActivity : AppCompatActivity() {
 
         toggle = findViewById(R.id.toggle)
         status = findViewById(R.id.status)
+        findViewById<TextView>(R.id.version).text =
+            "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
 
         toggle.isChecked = Settings.enabled
         toggle.setOnCheckedChangeListener { _, checked ->
