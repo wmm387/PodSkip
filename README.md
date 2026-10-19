@@ -51,6 +51,30 @@ echo "sdk.dir=$HOME/Library/Android/sdk" > local.properties   # macOS
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
+### Release 签名包
+
+释放版开启了 R8 混淆 + 资源压缩，体积从 11 MB 降到 2.4 MB。
+
+签名信息从仓库根目录的 `keystore.properties` 读取，该文件不入库（`*.jks`、`keystore.properties` 都在 `.gitignore` 里）。首次构建自己的 release 包：
+
+```bash
+# 1. 生成自己的 keystore（有效期 30 年）
+keytool -genkeypair -v -keystore keystore/podskip-release.jks -storetype JKS \
+  -alias podskip -keyalg RSA -keysize 2048 -validity 10950
+
+# 2. 按 keystore.properties.example 填一份 keystore.properties
+cp keystore.properties.example keystore.properties
+#    然后改里面的 storePassword / keyPassword
+
+# 3. 构建
+./gradlew assembleRelease
+# 产物：app/build/outputs/apk/release/app-release.apk
+```
+
+没有 `keystore.properties` 时 release 也能编译，只是产出未签名的 APK，不会报错。
+
+> 换签名会导致无法覆盖安装：release 和 debug 签名不同，两个包不能互相覆盖，先 `adb uninstall com.zero.podskip` 再装另一个。
+
 ## 使用
 
 1. 打开 App，按引导走完：开无障碍 → 允许通知 → 按键测试 → 手势参数 → 选应用。
@@ -102,7 +126,7 @@ app/src/main/java/com/zero/podskip/
 
 - [ ] 手势参数实时预览（改完立刻注入一次让用户看效果）
 - [ ] 更多机型的自启动/省电引导
-- [ ] Release 签名与体积优化（当前 debug 包未混淆）
+- [ ] 截图与使用演示
 
 ## 许可
 

@@ -12,10 +12,11 @@ local.properties
 *.iml
 .DS_Store
 
-# 签名文件：私钥绝不入库
+# 签名文件：私钥与口令绝不入库
 *.jks
 *.keystore
 !debug.keystore
+keystore.properties
 
 # 产物
 *.apk
