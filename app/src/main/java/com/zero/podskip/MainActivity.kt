@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.View
 import android.view.accessibility.AccessibilityManager
 import android.widget.Button
 import android.widget.TextView
@@ -23,6 +24,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var toggle: SwitchCompat
     private lateinit var status: TextView
+    private lateinit var a11yButton: Button
     private var suppressToggle = false
 
     private val notifPermissionLauncher =
@@ -94,9 +96,19 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btn_apps).setOnClickListener {
             startActivity(Intent(this, AppListActivity::class.java))
         }
+        a11yButton = findViewById(R.id.btn_a11y)
+        a11yButton.setOnClickListener {
+            startActivity(
+                Intent(this, OnboardingActivity::class.java)
+                    .putExtra(OnboardingActivity.EXTRA_START_STEP, 1)
+            )
+        }
 
-        // 无障碍还没开：主页这两个按钮对用户没用，直接进引导，省掉「找不到开启入口」
-        if (savedInstanceState == null && !isServiceEnabled()) {
+        // 服务开着就记一笔「引导已走过」，之后系统解绑也不会再强制跳引导
+        if (isServiceEnabled()) Settings.onboardingDone = true
+
+        // 只在从没走过引导、且无障碍没开时才自动跳，避免每次打开都弹引导
+        if (savedInstanceState == null && !Settings.onboardingDone && !isServiceEnabled()) {
             startActivity(
                 Intent(this, OnboardingActivity::class.java)
                     .putExtra(OnboardingActivity.EXTRA_START_STEP, 1)
@@ -153,6 +165,8 @@ class MainActivity : AppCompatActivity() {
         status.setTextColor(
             getColor(if (watching) R.color.success else R.color.on_surface_variant)
         )
+        // 服务没开时才需要一个显眼的开启入口
+        a11yButton.visibility = if (on) View.GONE else View.VISIBLE
     }
 
     private fun labelOf(pkg: String): String = try {

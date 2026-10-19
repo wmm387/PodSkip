@@ -149,6 +149,17 @@ object Settings {
             sp.edit().putBoolean("keep_alive_always", value).apply()
         }
 
+    /**
+     * 引导是否已经走完过一次。
+     * 只有从未走过引导（或服务没开过）才自动跳引导；走过一次之后
+     * 就算系统把无障碍解绑了，也只停在主页提示，不再硬跳。
+     */
+    var onboardingDone: Boolean
+        get() = sp.getBoolean("onboarding_done", false)
+        set(value) {
+            sp.edit().putBoolean("onboarding_done", value).apply()
+        }
+
     var whitelist: Set<String>
         get() = sp.getStringSet("whitelist", DEFAULT_WHITELIST) ?: DEFAULT_WHITELIST
         set(value) {

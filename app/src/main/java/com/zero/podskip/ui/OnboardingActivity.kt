@@ -312,6 +312,8 @@ class OnboardingActivity : AppCompatActivity() {
             return
         }
         Settings.enabled = true
+        // 记一笔：引导走完过，以后不再自动跳引导
+        Settings.onboardingDone = true
         // 开着通知权限的话，立刻让服务按需挂上前台通知
         SwipeKeyService.instance?.refreshForeground()
         Toast.makeText(this, "按键接管已开启", Toast.LENGTH_SHORT).show()
