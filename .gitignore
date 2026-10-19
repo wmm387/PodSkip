@@ -1,0 +1,25 @@
+# Gradle
+.gradle/
+build/
+app/build/
+.kotlin/
+
+# 本机路径，不能提交
+local.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# 签名文件：私钥绝不入库
+*.jks
+*.keystore
+!debug.keystore
+
+# 产物
+*.apk
+*.aab
+*.ap_
+*.dex
+captures/

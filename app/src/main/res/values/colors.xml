@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 底色：Logo 左上角的深靛紫压暗，晚上看不刺眼 -->
+    <color name="bg">#0D0916</color>
+    <color name="surface">#191228</color>
+    <color name="surface_high">#221838</color>
+    <color name="outline">#33264A</color>
+
+    <!-- 主色取自 Logo 亮紫端，压暗一档，避免大面积高亮太刺眼 -->
+    <color name="primary">#8B2CB5</color>
+    <color name="on_primary">#FFFFFF</color>
+    <color name="primary_container">#3A1B52</color>
+    <color name="on_primary_container">#EED9FF</color>
+    <color name="secondary_container">#2A1D3E</color>
+    <color name="on_secondary_container">#E4D3FA</color>
+
+    <color name="on_surface">#F3EDFA</color>
+    <color name="on_surface_variant">#B3A4C8</color>
+    <color name="on_surface_faint">#8A7CA0</color>
+
+    <color name="success">#5BE59B</color>
+    <color name="warning">#FFC46B</color>
+    <color name="danger">#FF7A85</color>
+</resources>

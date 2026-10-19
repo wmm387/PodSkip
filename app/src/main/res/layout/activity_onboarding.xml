@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:id="@+id/step_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="第 1 / 5 步"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <!-- 1. 说明 + 打开无障碍 -->
+        <LinearLayout
+            android:id="@+id/step1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingExtra="6dp"
+                android:text="耳机按键属于系统级按键，普通应用收不到。只有无障碍服务能在系统分发之前拦下它，也只有它能把「上滑」这个手势真正打进屏幕。\n\n本应用只做两件事：拦截耳机按键、模拟滑动。不读取屏幕内容，不联网，不上传任何数据。\n\n在系统设置里找到「耳机切剧 · 按键接管」，打开它。小米/华为/OPPO 可能还要额外允许「自启动」和「后台运行」，否则服务会被系统清掉。"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/a11y_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="服务未开启"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btn_open_a11y"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="打开系统无障碍设置" />
+        </LinearLayout>
+
+        <!-- 2. 通知权限 + 保活说明 -->
+        <LinearLayout
+            android:id="@+id/step2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingExtra="6dp"
+                android:text="为什么需要通知权限？\n\n安卓会在内存紧张时回收后台服务。挂一条前台通知可以把服务提到前台优先级，系统就不会把它清掉——没有它，看剧看到一半按耳机键可能突然没反应。\n\n这条通知是静默的：不响、不亮屏、不进锁屏，只在你打开白名单应用时出现，退出 1 分钟后自动消失。"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/notify_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:lineSpacingExtra="4dp"
+                android:text="正在检查通知权限…"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btn_notify"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="允许通知" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="始终后台保活（可选）"
+                    android:textSize="14sp" />
+
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/switch_keepalive_onboarding"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/keepalive_hint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"
+                android:textColor="@color/on_surface_variant"
+                android:textSize="12sp" />
+
+        </LinearLayout>
+
+        <!-- 3. 耳机按键测试 -->
+        <LinearLayout
+            android:id="@+id/step3"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingExtra="6dp"
+                android:text="插上耳机，打开测试页按一下按键。\n\n它会告诉你耳机是哪一型：直接发切歌键的（零延迟），还是只发同一个键、需要数按了几次的（会有判定延迟）。换耳机后也可以随时回来重测。"
+                android:textSize="14sp" />
+
+            <Button
+                android:id="@+id/btn_key_test"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="打开耳机按键测试" />
+
+            <TextView
+                android:id="@+id/key_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="还没测过"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <!-- 4. 手势参数（可跳过） -->
+        <LinearLayout
+            android:id="@+id/step4"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingExtra="6dp"
+                android:text="默认参数对大多数手机可用，不确定就跳过。\n\n如果之后遇到「滑了不翻页」「一次翻两页」「单击暂停反应慢」，再回来调上滑起点、终点和判定窗口。改完立即生效，不用重启服务。"
+                android:textSize="14sp" />
+
+            <Button
+                android:id="@+id/btn_gesture"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="打开手势参数" />
+
+            <TextView
+                android:id="@+id/gesture_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:lineSpacingExtra="4dp"
+                android:textColor="@color/on_surface_variant"
+                android:textSize="13sp" />
+
+        </LinearLayout>
+
+        <!-- 5. 添加应用（最后一步） -->
+        <LinearLayout
+            android:id="@+id/step5"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingExtra="6dp"
+                android:text="只有名单里的应用会被接管，听歌等其他场景按键行为不变。\n\n下面是手机里已安装的常见短剧应用，点「加入」即可。没装的不显示。"
+                android:textSize="14sp" />
+
+            <LinearLayout
+                android:id="@+id/candidates_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="vertical" />
+
+            <TextView
+                android:id="@+id/no_candidate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:lineSpacingExtra="4dp"
+                android:text="没有检测到这三个应用。可以稍后在「应用白名单」里手动添加。"
+                android:textColor="@color/on_surface_variant"
+                android:textSize="13sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/apps_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:lineSpacingExtra="4dp"
+                android:textColor="@color/on_surface_variant"
+                android:textSize="13sp" />
+
+            <Button
+                android:id="@+id/btn_apps"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:minWidth="0dp"
+                android:text="其他应用 → 应用白名单"
+                android:textSize="13sp" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="40dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_prev"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="上一步" />
+
+            <Button
+                android:id="@+id/btn_next"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:text="下一步" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

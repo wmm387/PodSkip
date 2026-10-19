@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:fitsSystemWindows="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="24dp"
+        android:paddingTop="20dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="32dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="高级设置"
+                android:textColor="@color/on_surface"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/btn_reset_advanced"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:text="恢复默认"
+                android:textColor="@color/on_primary_container"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <TextView
+            style="@style/TextCaption"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="开关类选项集中在这里，改完立即生效，不用重启服务" />
+
+        <TextView
+            style="@style/TextSection"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:layout_marginBottom="6dp"
+            android:text="按键行为" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/switch_single"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="单击接管为暂停" />
+
+        <TextView
+            style="@style/TextCaption"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="关闭后单击交给系统自己暂停，零延迟，但双击和三击不再生效" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/switch_landscape"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:text="横屏时单击＝双击屏幕" />
+
+        <TextView
+            style="@style/TextCaption"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="多数播放器横屏后单击只亮一下进度条，双击才暂停。开启后横屏看剧按一下耳机就直接暂停。竖屏不受影响。" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/switch_long_press"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:text="长按不触发语音助手" />
+
+        <TextView
+            style="@style/TextCaption"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="开启后长按耳机键不会再被系统当成唤起语音助手，只按普通按键处理。关闭则长按交还给系统。" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="按键模式"
+            android:textColor="@color/on_surface"
+            android:textSize="14sp" />
+
+        <RadioGroup
+            android:id="@+id/radio_mode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp">
+
+            <RadioButton
+                android:id="@+id/rb_auto"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="自动（推荐）：两种信号都响应" />
+
+            <RadioButton
+                android:id="@+id/rb_count"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="只认单击/双击/三击" />
+
+            <RadioButton
+                android:id="@+id/rb_pass"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="只认多击键，单击透传" />
+        </RadioGroup>
+
+        <LinearLayout
+            android:id="@+id/wear_header"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp">
+
+            <TextView
+                style="@style/TextSection"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="佩戴检测" />
+
+            <TextView
+                android:id="@+id/wear_toggle"
+                style="@style/TextCaption"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="展开" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/wear_body"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switch_wear_pause"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="耳机摘下自动暂停" />
+
+        <TextView
+            style="@style/TextCaption"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="通过音频输出是否断开来判断：有线拔出、蓝牙断开、摘下即断开的耳机会触发。Android 没有公开的入耳状态接口，只摘一只仍连着蓝牙的耳机检测不到。" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/switch_wear_resume"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:text="重新戴上自动恢复" />
+
+        <TextView
+            style="@style/TextCaption"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="只在暂停是「摘下自动触发」时才恢复；你自己按过耳机键或暂停本来就是手动点的，不会替你播放。" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="自动恢复时限"
+            android:textColor="@color/on_surface"
+            android:textSize="14sp" />
+
+        <RadioGroup
+            android:id="@+id/radio_resume_window"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp">
+
+            <RadioButton
+                android:id="@+id/rb_1min"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="1 分钟" />
+
+            <RadioButton
+                android:id="@+id/rb_5min"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="5 分钟（默认）" />
+
+            <RadioButton
+                android:id="@+id/rb_15min"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="15 分钟" />
+        </RadioGroup>
+
+        <TextView
+            style="@style/TextCaption"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="摘下超过这个时间再戴上不会自动播放，避免晚上摘下、第二天戴上时突然外放。" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>
