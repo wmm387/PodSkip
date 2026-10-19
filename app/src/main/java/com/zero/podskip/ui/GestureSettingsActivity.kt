@@ -1,20 +1,27 @@
 package com.zero.podskip.ui
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.widget.Button
 import android.widget.SeekBar
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.zero.podskip.R
 import com.zero.podskip.Settings
+import com.zero.podskip.core.Logs
 
 /**
  * 手势参数：只放滑动几何与时序（滑块）。
  * 开关类选项（单击接管、横屏适配、长按防误触、按键模式、佩戴检测）都在 AdvancedSettingsActivity。
  */
 class GestureSettingsActivity : AppCompatActivity() {
+
+    companion object {
+        private const val ISSUES_URL = "https://github.com/wmm387/PodSkip/issues/new/choose"
+    }
 
     private lateinit var seekFrom: SeekBar
     private lateinit var seekTo: SeekBar
@@ -94,6 +101,26 @@ class GestureSettingsActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.btn_onboarding_again).setOnClickListener {
             startActivity(Intent(this, OnboardingActivity::class.java))
+        }
+        findViewById<Button>(R.id.btn_export_log).setOnClickListener { exportLog() }
+        findViewById<Button>(R.id.btn_feedback).setOnClickListener { openIssues() }
+    }
+
+    /** 导出诊断日志并调起分享，用户自己选微信/邮件发出来 */
+    private fun exportLog() {
+        try {
+            val file = Logs.export(this)
+            Logs.share(this, file)
+        } catch (e: Throwable) {
+            Toast.makeText(this, "导出失败：${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun openIssues() {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(ISSUES_URL)))
+        } catch (_: Throwable) {
+            Toast.makeText(this, ISSUES_URL, Toast.LENGTH_LONG).show()
         }
     }
 

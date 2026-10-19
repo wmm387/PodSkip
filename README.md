@@ -6,6 +6,10 @@ An Android accessibility service that maps wired/Bluetooth headset key presses t
 
 > 仅支持 Android 12+（minSdk 31），在 Xiaomi 14 / HyperOS（Android 16）上实机验证。
 
+[![Release](https://img.shields.io/github/v/release/wmm387/PodSkip?display_name=tag)](https://github.com/wmm387/PodSkip/releases)
+[![Issues](https://img.shields.io/github/issues/wmm387/PodSkip)](https://github.com/wmm387/PodSkip/issues)
+[![License](https://img.shields.io/github/license/wmm387/PodSkip)](LICENSE)
+
 <p align="center">
   <img src="docs/screenshots/main.jpg" width="320" alt="PodSkip 主界面" />
 </p>
@@ -17,7 +21,7 @@ An Android accessibility service that maps wired/Bluetooth headset key presses t
 - **白名单**：只在你指定的 App 里接管按键，其他地方耳机键照常工作。默认不带任何应用，引导里可选番茄小说 / 红果短剧 / 红果漫剧。
 - **佩戴检测**：耳机断开时自动暂停，重新连上后自动恢复（带恢复时限，防隔夜外放）。
 - **长按防误触**：吞掉长按产生的重复/松开事件，避免唤起语音助手。
-- **按需保活**：只在白名单 App 前台时挂前台服务通知，离开后自动撤销，不常驻。
+- **常驻保活通知**：开启期间通知栏显示一条常驻提示，并实时显示「正在接管：某某 App」，方便确认当前状态。
 - **零联网**：没有 `INTERNET` 权限，不读取屏幕内容。
 
 ## 工作原理
@@ -36,7 +40,7 @@ An Android accessibility service that maps wired/Bluetooth headset key presses t
 需要 JDK 17、Android SDK Platform 35。不需要 Android Studio。
 
 ```bash
-git clone https://github.com/<你的账号>/podskip.git
+git clone https://github.com/wmm387/PodSkip.git
 cd podskip
 
 # 指到本机 SDK（首次）
@@ -96,12 +100,26 @@ VERSION_NAME=0.1.0    # 展示用，主页底部显示 v0.1.0 (1)
 
 换耳机后按键行为可能不同，用「设置 → 耳机按键测试」，按几下，页面会识别耳机类型并给出建议判定窗口，可一键采用。
 
+## 遇到问题（按键没反应等）
+
+**反馈入口：[GitHub Issues](https://github.com/wmm387/PodSkip/issues/new/choose)**，请附上下面导出的诊断日志。
+
+不用教用户开 adb：
+
+1. 打开「设置 → 导出诊断日志」，点一下会弹出分享面板；
+2. 选微信 / 邮件 / 任意文件管理器把 txt 存下来；
+3. 在 Issues 里新建一条，把文件拖进去（或直接粘贴内容）。
+
+文件里包含：机型、系统/ROM 版本、无障碍与通知权限状态、后台运行豁免状态、白名单和各项参数，以及带毫秒时间戳的事件流（前台应用切换、按键到达、击数判定、手势注入结果）。另有 3 秒一次的主线程心跳，进程被系统冻结时会写一条 `W/beat: 主线程 xxx ms 没跑起来`——这类"按键要拉一下通知栏才生效"的问题，日志里能直接看到冻结时长。
+
+同目录下保留最近 5 份导出文件，其余自动清理。日志只存在本机，App 没有联网权限，不会自动上传任何东西。
+
 ## 已知限制
 
 - **单击有 0.4 秒左右的延迟**：单键耳机三种击法都发同一个键码，必须等判定窗口结束才能确定是单击还是双击的开始。硬件层面的限制，无法消除。
 - **单击是注入屏幕点击**：播放器必须响应点击才能暂停；个别播放器把单击完全吃掉时，可关掉「单击接管」让它自己处理（此时双击/三击失效）。
 - **佩戴检测不是真的入耳检测**：Android 没有公开的入耳状态 API，实现依赖「音频输出设备断开」。有线拔出、蓝牙断开、摘下即断连的耳机能触发；**只摘一只、蓝牙仍连着的 TWS 检测不到**。
-- **系统可能解绑无障碍服务**：MIUI/HyperOS 的省电策略会在后台解绑，需要把本 App 加入省电白名单，或开启「始终保活」。服务被解绑后按键不会有任何反应。
+- **系统可能解绑无障碍服务，或冻结后台进程**：MIUI/HyperOS 的 `GreezeManager` 会冻结后台进程，冻结期间耳机按键会被扣在系统队列里，表现为"按了没反应，拉一下通知栏才好"。需要授予「后台运行不受限制」（引导页第 2 步，或系统设置里把省电策略设为「无限制」）。服务被解绑后按键不会有任何反应。
 - **重装 APK 后**需要把无障碍开关关一次再打开，服务才会重新绑定。
 
 ## 权限
@@ -111,6 +129,7 @@ VERSION_NAME=0.1.0    # 展示用，主页底部显示 v0.1.0 (1)
 | `BIND_ACCESSIBILITY_SERVICE` | 过滤耳机按键事件、注入手势（核心功能） |
 | `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_SPECIAL_USE` | 在看剧期间保持服务存活 |
 | `POST_NOTIFICATIONS` | 显示前台服务通知（Android 13+ 需运行时授予） |
+| `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | 申请「后台运行不受限制」，避免进程被系统冻结 |
 | `VIBRATE` | 预留，当前版本未使用 |
 
 没有网络权限，不收集、不上传任何数据。无障碍服务不读取窗口内容和文字，只用 `typeWindowStateChanged` 判断前台应用包名（用于白名单）。
@@ -126,6 +145,7 @@ app/src/main/java/com/zero/podskip/
 │   ├── MultiTap.kt                 单击/双击/三击状态机
 │   ├── WearDetector.kt             音频输出设备监听（佩戴检测）
 │   ├── KeyProbe.kt                 按键记录 + 判定窗口建议
+│   ├── Logs.kt                     运行日志 + 心跳 + 诊断日志导出
 │   └── AppUsageTracker.kt          最近前台应用
 └── ui/
     ├── OnboardingActivity.kt       5 步引导

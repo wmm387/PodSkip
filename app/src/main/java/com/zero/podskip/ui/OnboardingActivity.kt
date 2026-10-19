@@ -36,6 +36,8 @@ class OnboardingActivity : AppCompatActivity() {
     private lateinit var a11yStatus: TextView
     private lateinit var notifyStatus: TextView
     private lateinit var btnNotify: Button
+    private lateinit var batteryStatus: TextView
+    private lateinit var btnBattery: Button
     private lateinit var keepAliveHint: TextView
     private lateinit var keyStatus: TextView
     private lateinit var gestureStatus: TextView
@@ -74,6 +76,8 @@ class OnboardingActivity : AppCompatActivity() {
         a11yStatus = findViewById(R.id.a11y_status)
         notifyStatus = findViewById(R.id.notify_status)
         btnNotify = findViewById(R.id.btn_notify)
+        batteryStatus = findViewById(R.id.battery_status)
+        btnBattery = findViewById(R.id.btn_battery)
         keepAliveHint = findViewById(R.id.keepalive_hint)
         keyStatus = findViewById(R.id.key_status)
         gestureStatus = findViewById(R.id.gesture_status)
@@ -87,6 +91,7 @@ class OnboardingActivity : AppCompatActivity() {
             startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))
         }
         btnNotify.setOnClickListener { onNotifyButtonClick() }
+        btnBattery.setOnClickListener { onBatteryButtonClick() }
         keepAliveHint.text = keepAliveText()
 
         findViewById<Button>(R.id.btn_key_test).setOnClickListener {
@@ -137,7 +142,10 @@ class OnboardingActivity : AppCompatActivity() {
         }
 
         if (step == 1) updateA11yStatus()
-        if (step == 2) updateNotifyStatus()
+        if (step == 2) {
+            updateNotifyStatus()
+            updateBatteryStatus()
+        }
         if (step == 3) updateKeyStatus()
         if (step == 4) updateGestureStatus()
         if (step == 5) renderCandidates()
@@ -197,6 +205,62 @@ class OnboardingActivity : AppCompatActivity() {
                 Intent(AndroidSettings.ACTION_APP_NOTIFICATION_SETTINGS)
                     .putExtra(AndroidSettings.EXTRA_APP_PACKAGE, packageName)
             )
+        } catch (e: Exception) {
+            startActivity(
+                Intent(AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    .setData(Uri.parse("package:$packageName"))
+            )
+        }
+    }
+
+    // ---------- 第 2 步：后台运行不受限制 ----------
+
+    /**
+     * 是否已豁免电池优化。
+     * 没豁免时 MIUI 的 GreezeManager 会把本应用冻进 cgroup freezer，
+     * 冻住期间耳机按键既进不了 onKeyEvent、也会被系统判超时丢掉，
+     * 表现就是「按了没反应，拉一下通知栏又好了」。
+     */
+    private fun isBatteryExempt(): Boolean = try {
+        val pm = getSystemService(POWER_SERVICE) as android.os.PowerManager
+        pm.isIgnoringBatteryOptimizations(packageName)
+    } catch (_: Throwable) {
+        false
+    }
+
+    private fun updateBatteryStatus() {
+        if (isBatteryExempt()) {
+            batteryStatus.text =
+                "后台运行已允许 ✓\n系统不会把本应用冻结，按键不会被卡住。"
+            batteryStatus.setTextColor(getColor(R.color.success))
+            btnBattery.text = "查看电池优化设置"
+        } else {
+            batteryStatus.text =
+                "后台运行未允许\n系统会把本应用冻结，冻结期间按耳机完全没有反应，" +
+                    "要等它自己解冻（比如拉一下通知栏）才恢复。"
+            batteryStatus.setTextColor(getColor(R.color.warning))
+            btnBattery.text = "允许后台运行"
+        }
+    }
+
+    private fun onBatteryButtonClick() {
+        if (isBatteryExempt()) {
+            openBatterySettings()
+            return
+        }
+        try {
+            startActivity(
+                Intent(AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                    .setData(Uri.parse("package:$packageName"))
+            )
+        } catch (e: Exception) {
+            openBatterySettings()
+        }
+    }
+
+    private fun openBatterySettings() {
+        try {
+            startActivity(Intent(AndroidSettings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
         } catch (e: Exception) {
             startActivity(
                 Intent(AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS)

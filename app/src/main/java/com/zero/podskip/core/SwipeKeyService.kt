@@ -8,6 +8,8 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Path
 import android.hardware.display.DisplayManager
@@ -35,6 +37,10 @@ class SwipeKeyService : AccessibilityService() {
             private set
     }
 
+    /**
+     * 当前接管的应用包名。
+     * 只允许「用户自己安装的应用」和「桌面」写它，系统窗口一律不认，见 [trackForeground]。
+     */
     @Volatile
     private var fgPkg: String = ""
 
@@ -44,35 +50,51 @@ class SwipeKeyService : AccessibilityService() {
         "com.google.android.inputmethod.latin"
     )
 
+    /** 包名 -> 是否用户自己安装的应用，避免每次按键都查一次 PackageManager */
+    private val userAppCache = HashMap<String, Boolean>()
+
+    /** 桌面包名，允许它更新 fgPkg（回到桌面就不再接管），但它本身不算用户应用 */
+    private val launcherPkg: String by lazy {
+        try {
+            val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+            packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+                ?.activityInfo?.packageName.orEmpty()
+        } catch (_: Throwable) {
+            ""
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         instance = this
         Settings.init(this)
-        // 默认不常驻：等白名单 App 出现在前台时再挂前台通知
-        if (Settings.enabled) goForeground(fgPkg.takeIf { it.isNotEmpty() })
+        Logs.init(this)
+        Logs.d(TAG, "service created")
+        Logs.startBeat()
+        // 总开关开着就常驻前台通知，纯保活用，不参与任何应用判断
+        if (Settings.enabled) goForeground()
         wearDetector = WearDetector(this, ::onHeadsetOff, ::onHeadsetOn).also { it.start() }
     }
 
-    /** 设置改动后立即重算前台通知状态（开着就常驻，关掉才撤） */
+    /** 设置改动后立即重算前台通知状态（开着就常驻，关掉才撤），并刷新通知文案 */
     fun refreshForeground() {
-        syncForeground(fgPkg.takeIf { it.isNotEmpty() })
+        syncForeground()
+        updateNotification()
     }
 
     /** 当前是否已挂前台通知 */
     private var fgActive = false
 
-    /** 前台通知里正在显示的应用 */
-    private var notifiedPkg: String? = null
+    fun isForegroundActive(): Boolean = fgActive
 
     /**
-     * 保活通知始终和「总开关」绑定：
-     * 开关开着就常驻一条通知（前台服务），关掉才撤。
-     * 之前做成「只在白名单应用前台时才挂」，结果是服务在后台被系统冻结，
-     * 连窗口事件都收不到，永远等不到「白名单应用出现」那一刻，直接死锁。
+     * 保活通知只跟「总开关」绑定：开着就常驻，关掉才撤。
+     * 通知内容不反映任何应用信息——之前按应用动态改标题，
+     * 反而让通知变成一层额外的状态机，出问题更难查。
      */
-    private fun syncForeground(pkg: String?) {
+    private fun syncForeground() {
         if (Settings.enabled) {
-            if (!fgActive || notifiedPkg != pkg) goForeground(pkg)
+            if (!fgActive) goForeground()
         } else if (fgActive) {
             stopForegroundService()
         }
@@ -84,66 +106,103 @@ class SwipeKeyService : AccessibilityService() {
         } catch (_: Throwable) {
         }
         fgActive = false
-        notifiedPkg = null
     }
 
-    private fun goForeground(pkg: String?) {
+    private fun goForeground() {
         try {
-            val nm = getSystemService(NotificationManager::class.java)
-            // v1 用了 IMPORTANCE_MIN，小米会把它折叠进「静默通知」甚至不显示，
-            // 换成 v2 + IMPORTANCE_LOW：仍然不响不亮，但能稳定出现在通知栏。
-            val chId = "podskip_running_v2"
-            if (nm.getNotificationChannel(chId) == null) {
-                nm.createNotificationChannel(
-                    NotificationChannel(chId, "按键监听", NotificationManager.IMPORTANCE_LOW).apply {
-                        description = "看剧时显示，用来防止系统回收按键监听服务"
-                        setShowBadge(false)
-                        enableVibration(false)
-                        setSound(null, null)
-                        lockscreenVisibility = Notification.VISIBILITY_SECRET
-                    }
-                )
-            }
-            nm.deleteNotificationChannel("podskip_running")
-            val pi = PendingIntent.getActivity(
-                this,
-                0,
-                Intent(this, com.zero.podskip.MainActivity::class.java),
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-            )
-            val title = if (pkg != null) "正在接管：${labelOf(pkg)}" else "耳机切剧待机中"
-            val n = Notification.Builder(this, chId)
-                .setSmallIcon(android.R.drawable.ic_media_play)
-                .setContentTitle(title)
-                .setContentText("双击下一个 · 三击上一个 · 单击暂停")
-                .setContentIntent(pi)
-                .setOngoing(true)
-                .build()
-            startForeground(1001, n)
+            val text = statusText()
+            startForeground(1001, buildNotification(text))
+            notifyText = text
             fgActive = true
-            notifiedPkg = pkg
+            Logs.d(TAG, "foreground on: $text")
         } catch (e: Throwable) {
-            android.util.Log.w(TAG, "startForeground failed: ${e.message}")
+            Logs.w(TAG, "startForeground failed: ${e.message}")
         }
     }
 
-    private fun labelOf(pkg: String): String = try {
-        val ai = packageManager.getApplicationInfo(pkg, 0)
-        packageManager.getApplicationLabel(ai).toString()
-    } catch (_: Throwable) {
-        pkg
+    /** 上一次写进通知的文案，一样就不再重复 notify */
+    private var notifyText = ""
+
+    private val labelCache = HashMap<String, String>()
+
+    private fun labelOf(pkg: String): String = labelCache.getOrPut(pkg) {
+        try {
+            packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString()
+        } catch (_: Throwable) {
+            pkg
+        }
+    }
+
+    /**
+     * 通知栏文案：白名单应用在前台时显示「正在接管：xx」，
+     * 其它时候回到手势提示。跟白名单联动，用户加了/删了应用立刻变。
+     */
+    private fun statusText(): String {
+        val pkg = fgPkg
+        return if (pkg.isNotEmpty() && pkg in Settings.whitelist && pkg != packageName) {
+            "正在接管：${labelOf(pkg)}"
+        } else {
+            "双击下一个 · 三击上一个 · 单击暂停"
+        }
+    }
+
+    /** 接管的应用变了就换一行通知，别的场景不动 */
+    private fun updateNotification() {
+        if (!fgActive) return
+        val text = statusText()
+        if (text == notifyText) return
+        notifyText = text
+        try {
+            getSystemService(NotificationManager::class.java).notify(1001, buildNotification(text))
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun buildNotification(text: String): Notification {
+        val nm = getSystemService(NotificationManager::class.java)
+        // v1 用了 IMPORTANCE_MIN，小米会把它折叠进「静默通知」甚至不显示，
+        // 换成 v2 + IMPORTANCE_LOW：仍然不响不亮，但能稳定出现在通知栏。
+        val chId = "podskip_running_v2"
+        if (nm.getNotificationChannel(chId) == null) {
+            nm.createNotificationChannel(
+                NotificationChannel(chId, "按键监听", NotificationManager.IMPORTANCE_LOW).apply {
+                    description = "看剧时显示，用来防止系统回收按键监听服务"
+                    setShowBadge(false)
+                    enableVibration(false)
+                    setSound(null, null)
+                    lockscreenVisibility = Notification.VISIBILITY_SECRET
+                }
+            )
+        }
+        nm.deleteNotificationChannel("podskip_running")
+        val pi = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, com.zero.podskip.MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        return Notification.Builder(this, chId)
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentTitle("耳机切剧正在运行")
+            .setContentText(text)
+            .setContentIntent(pi)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .build()
     }
 
     override fun onServiceConnected() {
         instance = this
-        android.util.Log.d(TAG, "service connected")
+        Logs.d(TAG, "service connected")
         serviceInfo = serviceInfo.apply {
             flags = flags or AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS
         }
-        if (Settings.enabled) goForeground(fgPkg.takeIf { it.isNotEmpty() })
+        if (Settings.enabled) goForeground()
     }
 
     override fun onDestroy() {
+        Logs.d(TAG, "service destroyed")
+        Logs.stopBeat()
         if (instance === this) instance = null
         wearDetector?.stop()
         wearDetector = null
@@ -151,23 +210,43 @@ class SwipeKeyService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        android.util.Log.d(TAG, "evt=${event?.eventType} pkg=${event?.packageName} fg=$fgPkg")
         if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
-        val pkg = event.packageName?.toString() ?: return
+        trackForeground(event.packageName?.toString().orEmpty())
+    }
+
+    /**
+     * 更新「当前接管的应用」。
+     *
+     * 只接受用户自己安装的应用和桌面。MIUI 大量场景会弹自己的系统窗口
+     * （耳机音效 com.miui.misound、状态栏插件 miui.systemui.plugin、
+     * 全局搜索 com.android.quicksearchbox 等），它们同样发 TYPE_WINDOW_STATE_CHANGED。
+     * 以前不加过滤跟着更新，前台应用就会被系统窗口顶掉，白名单判定随即失败，
+     * 表现就是「按耳机没反应」；而之后没有新的窗口事件把它改回来，
+     * 直到拉一下通知栏再收起、重新触发短剧 App 的窗口事件才恢复。
+     */
+    private fun trackForeground(pkg: String) {
+        if (pkg.isEmpty() || pkg == packageName) return
         if (pkg in systemOverlays) return
-        if (pkg != fgPkg) {
-            fgPkg = pkg
-            AppUsageTracker.record(this, pkg)
-            syncForeground(pkg)
+        if (!isUserApp(pkg) && pkg != launcherPkg) return
+        if (pkg == fgPkg) return
+        fgPkg = pkg
+        Logs.d(TAG, "fg -> $pkg")
+        updateNotification()
+        if (pkg != launcherPkg) AppUsageTracker.record(this, pkg)
+    }
+
+    /** 是不是用户自己装的（非系统应用）。系统应用永远不可能是要接管的短剧 App */
+    private fun isUserApp(pkg: String): Boolean = userAppCache.getOrPut(pkg) {
+        try {
+            val info = packageManager.getApplicationInfo(pkg, 0)
+            (info.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) == 0
+        } catch (_: Throwable) {
+            false
         }
     }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
-        android.util.Log.d(
-            TAG,
-            "key=${event.keyCode} act=${event.action} rep=${event.repeatCount} fg=$fgPkg " +
-                "enabled=${Settings.enabled} wl=${Settings.whitelist.size}"
-        )
+        Logs.d(TAG, "key=${event.keyCode} a=${event.action} r=${event.repeatCount} fg=$fgPkg")
         val hookKey = event.keyCode == KeyEvent.KEYCODE_HEADSETHOOK ||
             event.keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
 
@@ -189,8 +268,19 @@ class SwipeKeyService : AccessibilityService() {
             swallowChain = false
             return false
         }
+
+        // 服务刚连上、还没收到过窗口事件时补一次，否则「打开 App 直接按」会被挡掉
+        if (fgPkg.isEmpty()) {
+            val live = try {
+                rootInActiveWindow?.packageName?.toString().orEmpty()
+            } catch (_: Throwable) {
+                ""
+            }
+            trackForeground(live)
+        }
+
         if (fgPkg !in Settings.whitelist) {
-            android.util.Log.d(TAG, "blocked: fg=$fgPkg not in whitelist")
+            Logs.d(TAG, "skip pkg=$fgPkg")
             swallowChain = false
             return false
         }
@@ -222,7 +312,7 @@ class SwipeKeyService : AccessibilityService() {
                     false
                 } else {
                     MultiTap.feed(Settings.tapWindowMs) { tap ->
-                        android.util.Log.d(TAG, "resolved tap=$tap")
+                        Logs.d(TAG, "tap=$tap")
                         when (tap) {
                             Tap.SINGLE -> singleTapGesture()
                             Tap.DOUBLE -> swipe(up = true)
@@ -298,7 +388,7 @@ class SwipeKeyService : AccessibilityService() {
     private fun realBounds() =
         getSystemService(WindowManager::class.java).currentWindowMetrics.bounds
 
-    /** 屏幕当前旋转角度，仅用于日志与判断 */
+    /** 屏幕当前旋转角度，仅用于判断 */
     private fun rotationOf(): Int = try {
         getSystemService(DisplayManager::class.java)
             .getDisplay(Display.DEFAULT_DISPLAY)?.rotation ?: Surface.ROTATION_0
@@ -334,7 +424,17 @@ class SwipeKeyService : AccessibilityService() {
                 GestureDescription.StrokeDescription(path, 0L, Settings.swipeDurationMs)
             )
             .build()
-        android.util.Log.d(TAG, "dispatch ok=" + dispatchGesture(gesture, null, null))
+        Logs.d(TAG, "dispatch=" + dispatchGesture(gesture, gestureCallback, null))
+    }
+
+    private val gestureCallback = object : GestureResultCallback() {
+        override fun onCompleted(gestureDescription: GestureDescription?) {
+            Logs.d(TAG, "gesture done")
+        }
+
+        override fun onCancelled(gestureDescription: GestureDescription?) {
+            Logs.d(TAG, "gesture CANCELLED")
+        }
     }
 
     /** 一次「点画面」：竖屏单击，横屏（播放器要双击才暂停）改成双击 */
@@ -348,7 +448,7 @@ class SwipeKeyService : AccessibilityService() {
         val gesture = GestureDescription.Builder()
             .addStroke(GestureDescription.StrokeDescription(path, 0L, 60L))
             .build()
-        android.util.Log.d(TAG, "dispatch ok=" + dispatchGesture(gesture, null, null))
+        Logs.d(TAG, "dispatch=" + dispatchGesture(gesture, gestureCallback, null))
     }
 
     /**
@@ -366,7 +466,7 @@ class SwipeKeyService : AccessibilityService() {
             .addStroke(GestureDescription.StrokeDescription(first, 0L, 50L))
             .addStroke(GestureDescription.StrokeDescription(second, 120L, 50L))
             .build()
-        android.util.Log.d(TAG, "dispatch ok=" + dispatchGesture(gesture, null, null))
+        Logs.d(TAG, "dispatch=" + dispatchGesture(gesture, gestureCallback, null))
     }
 
     override fun onInterrupt() {}

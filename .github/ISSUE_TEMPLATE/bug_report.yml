@@ -1,0 +1,72 @@
+name: Bug 反馈
+description: 按键没反应、手势不对、被系统杀后台等问题
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        先谢谢反馈。请尽量把下面的信息填全，尤其是诊断日志——没有日志我只能靠猜。
+
+        日志获取方式：打开「耳机切剧 → 设置 → 导出诊断日志」，把生成的 txt 拖进下面的输入框即可。
+
+  - type: textarea
+    attributes:
+      label: 问题描述
+      description: 什么操作、期望什么结果、实际什么结果
+      placeholder: |
+        例：打开短剧后按耳机键没反应，拉一下通知栏再按就好了。
+        单击想暂停，实际什么都没发生。
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: 诊断日志
+      description: 把「设置 → 导出诊断日志」得到的 txt 内容粘贴到这里，或直接拖文件进来
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: 手机型号与系统
+      description: 例如 小米 14 / HyperOS 2.0（Android 15）
+    validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: 耳机型号与连接方式
+      description: 例如 小米圈铁耳机 Pro（有线）/ AirPods Pro 2（蓝牙）
+    validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: App 版本
+      description: 主页底部显示的版本号，例如 v0.1.0 (1)
+    validations:
+      required: true
+
+  - type: dropdown
+    attributes:
+      label: 后台运行豁免
+      description: 系统设置里「省电策略」是否设为无限制 / 是否允许后台运行
+      options:
+        - 已允许（无限制）
+        - 未允许
+        - 不确定
+    validations:
+      required: true
+
+  - type: checkboxes
+    attributes:
+      label: 已确认
+      options:
+        - label: 无障碍服务处于开启状态
+          required: true
+        - label: 目标 App 已加入白名单
+          required: true
+        - label: 重启过一次无障碍开关（关掉再打开）
+          required: false

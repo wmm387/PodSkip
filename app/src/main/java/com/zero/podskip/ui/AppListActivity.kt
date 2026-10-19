@@ -91,6 +91,9 @@ class AppListActivity : AppCompatActivity() {
                 }
             }
         }
+
+        // 名单变了，通知栏的「正在接管：xx」要跟着变
+        SwipeKeyService.instance?.refreshForeground()
     }
 
     private fun addRow(container: LinearLayout, pkg: String, action: String, onClick: () -> Unit) {

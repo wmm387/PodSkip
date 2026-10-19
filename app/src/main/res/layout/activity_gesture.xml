@@ -139,5 +139,33 @@
             android:text="重新查看开启引导"
             android:textSize="13sp" />
 
+        <Button
+            android:id="@+id/btn_export_log"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="start"
+            android:minWidth="0dp"
+            android:text="导出诊断日志"
+            android:textSize="13sp" />
+
+        <Button
+            android:id="@+id/btn_feedback"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="start"
+            android:minWidth="0dp"
+            android:text="反馈问题（GitHub）"
+            android:textSize="13sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:lineSpacingExtra="3dp"
+            android:text="按键没反应时，先导出日志，再到 GitHub 提一条 issue 并把文件附上。日志只存在本机，App 没有联网权限，不会自动上传。"
+            android:textSize="12sp" />
+
     </LinearLayout>
 </ScrollView>

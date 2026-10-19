@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 使用说明与常见问题
+    url: https://github.com/wmm387/PodSkip#遇到问题按键没反应等
+    about: 先看 README 里的「遇到问题」与「已知限制」，很多情况是系统冻结/省电策略导致的
