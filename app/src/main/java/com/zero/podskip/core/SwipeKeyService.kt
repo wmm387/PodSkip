@@ -20,6 +20,7 @@ import android.view.KeyEvent
 import android.view.Surface
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.view.inputmethod.InputMethodManager
 import com.zero.podskip.Mode
 import com.zero.podskip.Settings
 
@@ -52,6 +53,20 @@ class SwipeKeyService : AccessibilityService() {
 
     /** 包名 -> 是否用户自己安装的应用，避免每次按键都查一次 PackageManager */
     private val userAppCache = HashMap<String, Boolean>()
+
+    /**
+     * 输入法包名。键盘弹出时它也会发 TYPE_WINDOW_STATE_CHANGED，
+     * 而且它多半是用户自己装的（第三方输入法没有 FLAG_SYSTEM），
+     * 不排掉的话在短剧里点一下搜索框，fgPkg 就变成输入法，按键随即失效。
+     */
+    private val imePkgs: Set<String> by lazy {
+        try {
+            getSystemService(InputMethodManager::class.java)
+                .enabledInputMethodList.map { it.packageName }.toSet()
+        } catch (_: Throwable) {
+            emptySet()
+        }
+    }
 
     /** 桌面包名，允许它更新 fgPkg（回到桌面就不再接管），但它本身不算用户应用 */
     private val launcherPkg: String by lazy {
@@ -226,7 +241,7 @@ class SwipeKeyService : AccessibilityService() {
      */
     private fun trackForeground(pkg: String) {
         if (pkg.isEmpty() || pkg == packageName) return
-        if (pkg in systemOverlays) return
+        if (pkg in systemOverlays || pkg in imePkgs) return
         if (!isUserApp(pkg) && pkg != launcherPkg) return
         if (pkg == fgPkg) return
         fgPkg = pkg
