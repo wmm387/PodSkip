@@ -6,9 +6,9 @@ An Android accessibility service that maps wired/Bluetooth headset key presses t
 
 > 仅支持 Android 12+（minSdk 31），在 Xiaomi 14 / HyperOS（Android 16）上实机验证。
 
-[![Release](https://img.shields.io/github/v/release/wmm387/PodSkip?display_name=tag)](https://github.com/wmm387/PodSkip/releases)
 [![Issues](https://img.shields.io/github/issues/wmm387/PodSkip)](https://github.com/wmm387/PodSkip/issues)
 [![License](https://img.shields.io/github/license/wmm387/PodSkip)](LICENSE)
+<img src="https://img.shields.io/badge/Android-12%2B-3ddc84" alt="Android 12+">
 
 <p align="center">
   <img src="docs/screenshots/main.jpg" width="320" alt="PodSkip 主界面" />
@@ -94,7 +94,9 @@ VERSION_NAME=0.1.0    # 展示用，主页底部显示 v0.1.0 (1)
 
 ## 使用
 
-1. 打开 App，按引导走完：开无障碍 → 允许通知 → 按键测试 → 手势参数 → 选应用。
+安装：从 [Releases](https://github.com/wmm387/PodSkip/releases) 下载已发布的 APK；那里没有可用包时，按上面的步骤自行构建。
+
+1. 打开 App，按引导走完：开无障碍 → 允许通知 → 后台运行不受限制 → 按键测试 → 手势参数 → 选应用。
 2. 打开短剧 App 播放，按耳机键。
 3. 手感不对时进「设置」调判定窗口，或进「高级设置」切按键模式。
 
