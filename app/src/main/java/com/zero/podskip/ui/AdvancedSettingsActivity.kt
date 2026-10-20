@@ -29,6 +29,8 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     private lateinit var wearHeader: View
     private lateinit var wearBody: View
     private lateinit var wearToggle: TextView
+    private lateinit var switchAdSkip: SwitchCompat
+    private lateinit var adLast: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,6 +48,8 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         wearHeader = findViewById(R.id.wear_header)
         wearBody = findViewById(R.id.wear_body)
         wearToggle = findViewById(R.id.wear_toggle)
+        switchAdSkip = findViewById(R.id.switch_ad_skip)
+        adLast = findViewById(R.id.tv_ad_last)
 
         // 佩戴检测是低频功能，默认收起，点标题展开
         wearHeader.setOnClickListener { setWearExpanded(wearBody.visibility != View.VISIBLE) }
@@ -69,6 +73,11 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         }
         switchWearResume.setOnCheckedChangeListener { _, checked ->
             Settings.wearAutoResume = checked
+        }
+        switchAdSkip.setOnCheckedChangeListener { _, checked ->
+            Settings.adSkip = checked
+            SwipeKeyService.instance?.onAdSkipChanged()
+            renderAdLast()
         }
 
         radioMode.setOnCheckedChangeListener { _, id ->
@@ -101,6 +110,12 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         loadValues()
     }
 
+    override fun onResume() {
+        super.onResume()
+        // 检测是常驻服务在做，回到这一页时把「最近一次结论」刷新一下
+        renderAdLast()
+    }
+
     private fun loadValues() {
         switchSingle.isChecked = Settings.singleTapTakeover
         switchLandscape.isChecked = Settings.landscapeDoubleTap
@@ -108,6 +123,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         switchBt.isChecked = Settings.btKeys
         switchWearPause.isChecked = Settings.wearAutoPause
         switchWearResume.isChecked = Settings.wearAutoResume
+        switchAdSkip.isChecked = Settings.adSkip
         radioMode.check(
             when (Settings.mode) {
                 Mode.COUNT -> R.id.rb_count
@@ -123,6 +139,21 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             }
         )
         renderWearDependency()
+        renderAdLast()
+    }
+
+    /**
+     * 显示服务最近一次检测的结论。
+     * 不在应用里做「立即检测」——点这个按钮时前台是本应用，检测的永远是设置页，
+     * 看不到短剧那边认没认出来；改成回显真实检测记录。
+     */
+    private fun renderAdLast() {
+        val last = SwipeKeyService.instance?.lastAdResult().orEmpty()
+        adLast.text = when {
+            !Settings.adSkip -> "自动跳过已关闭"
+            last.isEmpty() -> "最近一次检测：还没有记录（去短剧 App 里播一集）"
+            else -> "最近一次检测：$last"
+        }
     }
 
     /** 折叠/展开佩戴检测；收起时不影响已保存的开关值 */

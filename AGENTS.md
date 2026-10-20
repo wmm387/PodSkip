@@ -85,6 +85,8 @@ adb shell pm clear com.zero.podskip                             # 清数据（�
 | `core/AppUsageTracker.kt` | 最近前台应用 |
 | `core/Logs.kt` | 按天日志、过期清理、诊断日志导出 |
 | `core/KeyProbe.kt` | 按键记录，给「耳机按键测试」页显示 |
+| `core/AdRules.kt` | 广告识别规则（关键字 → 点击/上滑），实验功能，默认关 |
+| `core/AdDetector.kt` | 遍历节点树 + 节流/冷却，执行跳过动作 |
 | `Settings.kt` | 全部偏好项与默认值 |
 | `ui/` | 主页、引导页、设置页、高级设置、白名单、按键测试 |
 
@@ -120,7 +122,9 @@ Settings.btKeys && Settings.enabled && hasBtAudio() && (inSelf || fgPkg 在白�
 ## 5. 不要做的事
 
 - 不引入 Compose、第三方库、新的网络/统计 SDK；体积和「零联网」是卖点。
-- 不加 `INTERNET` 权限，不读取窗口内容或文字（只用 `typeWindowStateChanged` 取包名），README 对外承诺过。
+- 不加 `INTERNET` 权限。默认不读取窗口内容或文字（只用 `typeWindowStateChanged` 取包名）；
+  只有用户手动打开「自动跳过广告（实验）」后，`AdDetector` 才会读白名单应用的节点树做本机判断，
+  关掉开关后连内容变化事件都不订阅。改这条之前先想清楚 README 对外怎么写的。
 - 不改包名、`applicationId`、无障碍服务类名；改了等于换应用，用户设置全丢。
 - 不动签名文件与签名配置；换签名会导致无法覆盖安装。
 - 不用 `displayMetrics` 算注入坐标，用 `WindowManager.currentWindowMetrics.bounds`（见第 6 节）。

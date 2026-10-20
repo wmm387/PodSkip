@@ -428,6 +428,38 @@ Permission Denial: startForeground requires android.permission.FOREGROUND_SERVIC
 
 **延迟**：摘下到暂停 ≈ 耳机断开耗时（有线几乎即时、蓝牙 1–2s）+ 500ms 去抖。蓝牙场景整体 1.5–2.5s，属可感知但可接受；这是「等系统确认设备真的没了」的必要成本。
 
+### 5.10 自动跳过广告（实验，默认关）
+
+参考 `clarithromycine/ad-auto` 的做法：**界面变化 → 读当前应用的节点树 → 关键字规则 → 点「跳过」或上滑划走**。PodSkip 只移植其中确定性高的部分，去掉「点屏幕中央暂停广告」「自定义关键词」这类实验性分支。
+
+**链路**
+
+```
+AccessibilityEvent(TYPE_WINDOW_CONTENT_CHANGED / STATE_CHANGED)   ← 仅功能开启时订阅
+        → AdDetector.collect(app 自己的所有窗口, BFS ≤500 节点 / ≤40 层)
+        → AdRules.match(pkg, nodes, pageText, 屏幕尺寸)
+        → CLICK：可点祖先 ACTION_CLICK，失败按节点坐标补一次点击手势
+        → SWIPE_UP：复用按键的 swipe(up = true)
+```
+
+**规则顺序即安全策略**（`AdRules.match`）：
+
+1. 「跳过广告 / 跳过此广告 / Skip Ad」——语义无歧义，不需要广告上下文；
+2. 「上滑继续观看」类提示——广告自己给的方向指令；
+3. **正剧保护**：出现「倍速 / 选集 / 第X集 / 点赞 / 收藏…」就什么都不做；
+4. 已知形态：直播广告渲染视图 `ttlive_player_render_view`、商城卡片 banner（文字节点 ≤ 6）、右上角不可点的「广告」角标、红果的「立即领取」；
+5. 需要广告上下文的点击：「跳过 / 关闭 / 知道了」；「继续观看」还要等倒计时真的走完。
+
+**节流与止损**：content-changed 400ms 节流；动作后冷却 1.5s（穿山甲类 6s）；上滑后补扫一次；同一条广告最多连划 10 次 / 30 秒，超了就停手等界面变化。倒计时（含横屏「X 秒后可继续上滑」滑动锁）期间不划，按读到的秒数安排重扫。
+
+**为什么留到 10 次**：部分广告（尤其穿山甲系）划一次不生效，要等 3–6 秒落地动画放完才认，期间只能反复试。1.5s 间隔 + 10 次上限是实测可用的组合——既不错过慢生效的广告，也不至于一直划下去把集数翻烂。2026-10-20 曾一度把「角标 / 立即领取 / 商城卡片」收紧到 3s 间隔、2 次上限，实测会把慢生效的广告漏掉，已回滚。
+
+**自测入口**：设置页只回显「最近一次检测」的结论与时间。原先设计成「立即检测当前界面」按钮，但按钮点在本应用里，检测的永远是设置页，看不到短剧页面，已废弃。真正的排查手段是日志里的 `ad hit / ad miss` 行。
+
+**边界**：只在白名单应用内跑；关掉开关时 `applyA11yConfig()` 把事件类型收回 `typeWindowStateChanged`，连内容变化事件都不订阅；读不到文字的纯视频广告仍会跳不过——这是无障碍方案的硬限制，页面上已说明。
+
+**新增权限**：无。只是把 `canRetrieveWindowContent` 真正用起来（XML 早已声明），另加 `flagRetrieveInteractiveWindows` / `flagReportViewIds` / `flagIncludeNotImportantViews` 三个 flag（广告浮层常被标记为「对无障碍不重要」）。
+
 ## 6. 设置项
 
 页面归属：**手势参数页只放滑动几何与时序（滑块），开关类选项全部集中在「高级设置」页**。
@@ -446,6 +478,7 @@ Permission Denial: startForeground requires android.permission.FOREGROUND_SERVIC
 | 耳机摘下自动暂停 | 高级设置 | Switch | 开 |
 | 重新戴上自动恢复 | 高级设置 | Switch | 开（依赖上一项，关闭时置灰） |
 | 自动恢复时限 | 高级设置 | 单选 | 5 分钟（1/5/15） |
+| 自动跳过广告（实验） | 高级设置 | Switch | 关 |
 | 始终后台保活 | 主页 | Switch | 关 |
 
 **迁移方式**：SharedPreferences 键名全部不变，只挪页面——升级后用户的既有配置原样保留；首次安装按上表默认值。手势参数页留一行说明和「打开高级设置」跳转按钮，两个页面的「恢复默认」各自只重置自己管辖的范围（`resetSwipe()` / `resetAdvanced()`），互不越界。
