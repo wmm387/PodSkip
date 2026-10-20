@@ -436,7 +436,10 @@ class SwipeKeyService : AccessibilityService() {
     }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
-        Logs.d(TAG, "key=${event.keyCode} a=${event.action} r=${event.repeatCount} fg=$fgPkg")
+        // 只有「按下」记一行，松开和长按重复事件没必要写——一次按键会来三四个事件
+        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+            Logs.d(TAG, "key=${event.keyCode} fg=$fgPkg")
+        }
         val hookKey = event.keyCode == KeyEvent.KEYCODE_HEADSETHOOK ||
             event.keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
 
@@ -662,10 +665,6 @@ class SwipeKeyService : AccessibilityService() {
     }
 
     private val gestureCallback = object : GestureResultCallback() {
-        override fun onCompleted(gestureDescription: GestureDescription?) {
-            Logs.d(TAG, "gesture done")
-        }
-
         override fun onCancelled(gestureDescription: GestureDescription?) {
             Logs.d(TAG, "gesture CANCELLED")
         }

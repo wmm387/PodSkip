@@ -45,7 +45,6 @@ class BtKeys(
                 val e: KeyEvent = mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT)
                     ?: return false
                 if (e.action != KeyEvent.ACTION_DOWN || e.repeatCount > 0) return true
-                Logs.d(TAG, "bt key=${e.keyCode}")
                 return onKeyDown(e.keyCode)
             }
         })

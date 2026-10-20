@@ -106,8 +106,26 @@ class GestureSettingsActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btn_feedback).setOnClickListener { openIssues() }
     }
 
-    /** 导出诊断日志并调起分享，用户自己选微信/邮件发出来 */
+    /**
+     * 导出前先说清楚范围。
+     * 这个提示不是客套——用户踩了坑再导出，日志里只有最近 3 小时，
+     * 而他上午的操作根本不在里面，导出来看着像「什么都没发生」。
+     */
     private fun exportLog() {
+        AlertDialog.Builder(this)
+            .setTitle("导出诊断日志")
+            .setMessage(
+                "只会导出最近 ${Logs.exportWindowHours} 小时内的日志。\n\n" +
+                    "如果你的操作已经超过 ${Logs.exportWindowHours} 小时，请重新操作一遍再导出，" +
+                    "否则日志里看不到那次问题。"
+            )
+            .setNegativeButton("取消", null)
+            .setPositiveButton("导出") { _, _ -> doExportLog() }
+            .show()
+    }
+
+    /** 导出诊断日志并调起分享，用户自己选微信/邮件发出来 */
+    private fun doExportLog() {
         try {
             val file = Logs.export(this)
             Logs.share(this, file)

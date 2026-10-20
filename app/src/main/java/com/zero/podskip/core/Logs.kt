@@ -22,10 +22,13 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 /**
- * 轻量事件日志：同时写 logcat 和 filesDir/logs/podskip.log。
+ * 轻量事件日志：同时写 logcat 和 filesDir/logs/podskip-yyyyMMdd.log。
  *
  * 存在的意义只有一个——别人手机上出问题（按键没反应之类），
  * 不用教他开 adb，直接在设置页点「导出诊断日志」，把文件发过来就行。
+ *
+ * 按天分文件：[KEEP_DAYS] 天前的自动删；导出只取最近 [EXPORT_WINDOW_MS] 的事件，
+ * 免得一按导出就是一个几百 KB 的大杂烩，关键的那几行反而找不到。
  *
  * 除了业务事件，还有一个 3 秒一次的主线程心跳：如果进程被 MIUI 这类
  * 系统冻结，心跳会迟到，迟到时长会写成一行 `W/beat`，冻结这件事就有证据了。
@@ -33,8 +36,23 @@ import java.util.concurrent.TimeUnit
 object Logs {
 
     private const val DIR = "logs"
-    private const val NAME = "podskip.log"
-    private const val MAX_BYTES = 128 * 1024L
+    private const val NAME_PREFIX = "podskip-"
+    private const val NAME_SUFFIX = ".log"
+
+    /** 单个日志文件上限。超了就丢掉最旧的一半，继续滚动写入 */
+    private const val MAX_BYTES = 512 * 1024
+
+    /** 日志保留天数 */
+    private const val KEEP_DAYS = 3
+
+    /** 导出只取最近这么久的事件（这段时间一条都没有时退回今天的全部） */
+    private const val EXPORT_WINDOW_MS = 3 * 60 * 60 * 1000L
+
+    /** 导出窗口的小时数，界面提示文案用 */
+    val exportWindowHours: Int get() = (EXPORT_WINDOW_MS / 3_600_000L).toInt()
+
+    /** 导出正文上限，超了只留最新的部分 */
+    private const val MAX_EXPORT_CHARS = 200_000
 
     /** 心跳间隔 / 迟到多久算一次卡顿 */
     private const val BEAT_MS = 3_000L
@@ -45,13 +63,25 @@ object Logs {
     }
 
     private val fileStamp = SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US)
+    private val dayStamp = SimpleDateFormat("yyyyMMdd", Locale.US)
     private val readStamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+
+    /** 上一次清理发生在哪一天，用来避免每写一行都扫一遍目录 */
+    @Volatile
+    private var lastCleanDay = ""
 
     @Volatile
     private var app: Context? = null
 
     fun init(ctx: Context) {
-        if (app == null) app = ctx.applicationContext
+        if (app != null) return
+        app = ctx.applicationContext
+        exec.execute {
+            try {
+                prune(File(ctx.filesDir, DIR), System.currentTimeMillis())
+            } catch (_: Throwable) {
+            }
+        }
     }
 
     fun d(tag: String, msg: String) = log("D", tag, msg)
@@ -69,17 +99,19 @@ object Logs {
 
     private fun append(line: String) {
         val ctx = app ?: return
-        val text = "${now(fileStamp)} $line\n"
+        val at = System.currentTimeMillis()
+        val text = "${stamp(at)} $line\n"
         exec.execute {
             try {
                 val dir = File(ctx.filesDir, DIR).apply { mkdirs() }
-                val f = File(dir, NAME)
-                if (f.length() > MAX_BYTES) {
-                    val old = File(dir, "$NAME.1")
-                    old.delete()
-                    f.renameTo(old)
-                }
+                val f = fileFor(dir, at)
+                // 写满就丢掉最旧的一半，继续滚动，不会因为满了一直不写
+                if (f.length() > MAX_BYTES) trimHead(f)
                 f.appendText(text)
+                if (dayOf(at) != lastCleanDay) {
+                    lastCleanDay = dayOf(at)
+                    prune(dir, at)
+                }
             } catch (_: Throwable) {
                 // 日志写不进去不能影响主流程
             }
@@ -87,6 +119,61 @@ object Logs {
     }
 
     private fun now(fmt: SimpleDateFormat): String = synchronized(fmt) { fmt.format(Date()) }
+
+    private fun stamp(at: Long): String = synchronized(fileStamp) { fileStamp.format(Date(at)) }
+
+    private fun dayOf(at: Long): String = synchronized(dayStamp) { dayStamp.format(Date(at)) }
+
+    private fun fileFor(dir: File, at: Long): File = File(dir, "$NAME_PREFIX${dayOf(at)}$NAME_SUFFIX")
+
+    /**
+     * 文件写满后砍掉最旧的一半，留最新的继续写。
+     * 从换行之后开始切，保证留下的都是完整行（UTF-8 多字节字符的 0x0A 不会出现在中间）。
+     */
+    private fun trimHead(f: File) {
+        try {
+            val bytes = f.readBytes()
+            val keep = MAX_BYTES / 2
+            if (bytes.size <= keep) return
+            var start = bytes.size - keep
+            while (start < bytes.size && bytes[start] != '\n'.code.toByte()) start++
+            if (start < bytes.size) start++
+            f.writeBytes(bytes.copyOfRange(start, bytes.size))
+        } catch (_: Throwable) {
+        }
+    }
+
+    /** 按文件名日期升序，等于按时间顺序 */
+    private fun logFiles(dir: File): List<File> =
+        dir.listFiles { f -> f.name.startsWith(NAME_PREFIX) && f.name.endsWith(NAME_SUFFIX) }
+            ?.sortedBy { it.name }
+            ?: emptyList()
+
+    /**
+     * 删过期日志 + 收拾导出文件。
+     * 顺带清掉旧版本留下的 podskip.log / podskip.log.1（当时按大小轮转，没有日期）。
+     */
+    private fun prune(dir: File, at: Long) {
+        try {
+            val keepFrom = dayOf(at - KEEP_DAYS * 86_400_000L)
+            dir.listFiles()?.forEach { f ->
+                val n = f.name
+                when {
+                    n == "podskip.log" || n == "podskip.log.1" -> f.delete()
+                    n.startsWith(NAME_PREFIX) && n.endsWith(NAME_SUFFIX) -> {
+                        val day = n.removePrefix(NAME_PREFIX).removeSuffix(NAME_SUFFIX)
+                        if (day.length == 8 && day < keepFrom) f.delete()
+                    }
+                }
+            }
+            // 导出文件只留最近的 5 份
+            dir.listFiles { f -> f.name.startsWith("podskip-log-") }
+                ?.sortedByDescending { it.lastModified() }
+                ?.drop(5)
+                ?.forEach { it.delete() }
+        } catch (_: Throwable) {
+        }
+    }
 
     // ---------- 主线程心跳：用来抓「进程被冻结」 ----------
 
@@ -127,10 +214,15 @@ object Logs {
         Settings.init(ctx)
         drain()
         val dir = File(ctx.filesDir, DIR).apply { mkdirs() }
+        val at = System.currentTimeMillis()
         val name = "podskip-log-" + now(SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)) + ".txt"
         val out = File(dir, name)
-        out.writeText(header(ctx) + "\n---------- 事件 ----------\n" + readAll(dir))
-        cleanOld(dir)
+        out.writeText(
+            header(ctx) +
+                "\n---------- 最近 ${EXPORT_WINDOW_MS / 3_600_000} 小时事件 ----------\n" +
+                readRecent(dir, at - EXPORT_WINDOW_MS, at)
+        )
+        prune(dir, at)
         return out
     }
 
@@ -156,21 +248,38 @@ object Logs {
         }
     }
 
-    private fun readAll(dir: File): String {
-        val old = File(dir, "$NAME.1").takeIf { it.exists() }?.readText().orEmpty()
-        val cur = File(dir, NAME).takeIf { it.exists() }?.readText().orEmpty()
-        return old + cur
-    }
-
-    /** 只留最近的 5 份导出文件，别把用户存储撑大 */
-    private fun cleanOld(dir: File) {
-        try {
-            dir.listFiles { f -> f.name.startsWith("podskip-log-") }
-                ?.sortedByDescending { it.lastModified() }
-                ?.drop(5)
-                ?.forEach { it.delete() }
-        } catch (_: Throwable) {
+    /**
+     * 取指定时间点之后的事件行。
+     *
+     * 行首是定宽的 `MM-dd HH:mm:ss.SSS`，直接按字符串比就行，不用解析成日期——
+     * 一天几万行的时候按行 new 一个 SimpleDateFormat 会明显卡住导出。
+     */
+    private fun readRecent(dir: File, since: Long, at: Long): String {
+        val cutoff = stamp(since)
+        val sb = StringBuilder()
+        for (f in logFiles(dir)) {
+            try {
+                f.forEachLine { line ->
+                    if (line.length > 18 && line >= cutoff) sb.append(line).append('\n')
+                }
+            } catch (_: Throwable) {
+            }
         }
+        // 窗口内一条都没有（刚出问题就导出、或者刚过零点），退回今天全天的
+        if (sb.isEmpty()) {
+            val today = fileFor(dir, at)
+            if (today.exists()) {
+                try {
+                    today.forEachLine { sb.append(it).append('\n') }
+                } catch (_: Throwable) {
+                }
+            }
+        }
+        if (sb.length > MAX_EXPORT_CHARS) {
+            return "（内容过长，只保留最后 ${MAX_EXPORT_CHARS / 1000}KB）\n" +
+                sb.substring(sb.length - MAX_EXPORT_CHARS)
+        }
+        return sb.toString()
     }
 
     private fun header(ctx: Context): String {
