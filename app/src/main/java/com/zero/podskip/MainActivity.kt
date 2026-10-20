@@ -69,6 +69,8 @@ class MainActivity : AppCompatActivity() {
             }
 
             Settings.enabled = checked
+            // 关总开关要立刻撤掉蓝牙媒体键接管和保活通知，不能等下一次窗口切换
+            SwipeKeyService.instance?.refreshForeground()
             refreshStatus()
         }
 

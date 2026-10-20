@@ -100,6 +100,27 @@
             android:text="开启后长按耳机键不会再被系统当成唤起语音助手，只按普通按键处理。关闭则长按交还给系统。" />
 
         <TextView
+            style="@style/TextSection"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:layout_marginBottom="6dp"
+            android:text="蓝牙耳机" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/switch_bt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="接管蓝牙耳机按键" />
+
+        <TextView
+            style="@style/TextCaption"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="蓝牙按键由系统直接派给正在播放的应用，不产生按键事件。开启后，白名单应用在前台时本应用会接管媒体键，再翻译成点击/滑动。代价：接管期间通知栏的媒体卡片显示「耳机切剧」，离开白名单应用自动恢复。" />
+
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"

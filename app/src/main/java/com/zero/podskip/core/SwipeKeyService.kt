@@ -13,6 +13,7 @@ import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Path
 import android.hardware.display.DisplayManager
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.SystemClock
 import android.view.Display
@@ -86,15 +87,98 @@ class SwipeKeyService : AccessibilityService() {
         Logs.init(this)
         Logs.d(TAG, "service created")
         Logs.startBeat()
+        btKeys = BtKeys(this, { code -> onBtKey(code) }, ::shouldTakeBt)
         // 总开关开着就常驻前台通知，纯保活用，不参与任何应用判断
         if (Settings.enabled) goForeground()
         wearDetector = WearDetector(this, ::onHeadsetOff, ::onHeadsetOn).also { it.start() }
     }
 
+    /** 蓝牙耳机通道（静音音轨 + MediaSession），见 [BtKeys] */
+    private var btKeys: BtKeys? = null
+
+    /** 蓝牙按键进来后走和有线耳机一样的动作，但**不判双击**：蓝牙耳机自己会区分单击/双击 */
+    private fun onBtKey(code: Int): Boolean {
+        KeyProbe.record(code)
+        if (!Settings.enabled) return false
+        if (fgPkg.isEmpty()) trackForeground(liveWindowPkg())
+        if (fgPkg !in Settings.whitelist) return false
+        clearAutoPause()
+        val handled = when (code) {
+            KeyEvent.KEYCODE_MEDIA_NEXT ->
+                if (Settings.mode == Mode.COUNT) false else {
+                    swipe(up = true)
+                    true
+                }
+
+            KeyEvent.KEYCODE_MEDIA_PREVIOUS ->
+                if (Settings.mode == Mode.COUNT) false else {
+                    swipe(up = false)
+                    true
+                }
+
+            KeyEvent.KEYCODE_HEADSETHOOK, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+            KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE ->
+                if (Settings.mode == Mode.PASSTHROUGH || !Settings.singleTapTakeover) false else {
+                    // 蓝牙单击只发一个键码，不用等双击窗口
+                    singleTapGesture()
+                    true
+                }
+
+            else -> false
+        }
+        if (handled) btKeys?.reclaim()
+        return handled
+    }
+
+    /** 白名单应用在前台就接管；离开、关总开关、关掉该功能、蓝牙断开都自动让出 */
+    private fun updateBtTakeover() {
+        val take = shouldTakeBt()
+        btRelease?.let { uiHandler.removeCallbacks(it) }
+        btRelease = null
+        if (take) {
+            btKeys?.setTakingOver(true)
+        } else if (btKeys?.isTaken() == true) {
+            // 窗口事件会抖（系统弹窗、桌面、输入法），晚 2 秒再让出
+            val r = Runnable {
+                btRelease = null
+                btKeys?.setTakingOver(false)
+            }
+            btRelease = r
+            uiHandler.postDelayed(r, 2000)
+        }
+    }
+
+    /** 接管媒体键的全部前提条件；[BtKeys] 每 2 秒会回来问一次 */
+    private fun shouldTakeBt(): Boolean =
+        Settings.btKeys && Settings.enabled &&
+            fgPkg.isNotEmpty() && fgPkg in Settings.whitelist && hasBtAudio()
+
+    /**
+     * 当前有没有连着蓝牙音频设备（A2DP / BLE）。
+     * 没蓝牙耳机时抢媒体键毫无意义，只会白挂一条静音音轨、占着通知栏媒体卡片。
+     * 列表为空按「有」处理——查询异常时宁可不影响原有功能。
+     */
+    private fun hasBtAudio(): Boolean = try {
+        val outs = getSystemService(AudioManager::class.java)
+            .getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+        outs.isEmpty() || outs.any {
+            it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                it.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                it.type == AudioDeviceInfo.TYPE_BLE_SPEAKER
+        }
+    } catch (_: Throwable) {
+        true
+    }
+
+    private val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var btRelease: Runnable? = null
+
     /** 设置改动后立即重算前台通知状态（开着就常驻，关掉才撤），并刷新通知文案 */
     fun refreshForeground() {
         syncForeground()
         updateNotification()
+        updateBtTakeover()
     }
 
     /** 当前是否已挂前台通知 */
@@ -216,12 +300,15 @@ class SwipeKeyService : AccessibilityService() {
         // 重装 / 重开无障碍时，短剧可能已经在播放了，补一次前台应用
         android.os.Handler(mainLooper).postDelayed({
             if (fgPkg.isEmpty()) trackForeground(liveWindowPkg())
+            updateBtTakeover()
         }, 900)
     }
 
     override fun onDestroy() {
         Logs.d(TAG, "service destroyed")
         Logs.stopBeat()
+        btKeys?.release()
+        btKeys = null
         if (instance === this) instance = null
         wearDetector?.stop()
         wearDetector = null
@@ -251,6 +338,7 @@ class SwipeKeyService : AccessibilityService() {
         fgPkg = pkg
         Logs.d(TAG, "fg -> $pkg")
         updateNotification()
+        updateBtTakeover()
         if (pkg != launcherPkg) AppUsageTracker.record(this, pkg)
     }
 

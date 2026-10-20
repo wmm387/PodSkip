@@ -139,6 +139,19 @@ object Settings {
         }
 
     /**
+     * 蓝牙耳机按键接管。
+     * 蓝牙按键走 AVRCP，由系统直接派给「正在放音频的应用」，无障碍看不到。
+     * 开启后本应用在白名单 App 前台时会挂一条静音音轨 + PLAYING 的 MediaSession，
+     * 让系统把媒体键判给本应用，再翻译成点击/滑动。
+     * 代价：接管期间通知栏的媒体卡片显示本应用。
+     */
+    var btKeys: Boolean
+        get() = sp.getBoolean("bt_keys", true)
+        set(value) {
+            sp.edit().putBoolean("bt_keys", value).apply()
+        }
+
+    /**
      * 引导是否已经走完过一次。
      * 只有从未走过引导（或服务没开过）才自动跳引导；走过一次之后
      * 就算系统把无障碍解绑了，也只停在主页提示，不再硬跳。

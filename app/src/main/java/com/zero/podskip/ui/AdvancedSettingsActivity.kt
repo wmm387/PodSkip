@@ -10,6 +10,7 @@ import androidx.appcompat.widget.SwitchCompat
 import com.zero.podskip.Mode
 import com.zero.podskip.R
 import com.zero.podskip.Settings
+import com.zero.podskip.core.SwipeKeyService
 
 /**
  * 高级设置：所有开关类选项集中在这里。
@@ -20,6 +21,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     private lateinit var switchSingle: SwitchCompat
     private lateinit var switchLandscape: SwitchCompat
     private lateinit var switchLongPress: SwitchCompat
+    private lateinit var switchBt: SwitchCompat
     private lateinit var switchWearPause: SwitchCompat
     private lateinit var switchWearResume: SwitchCompat
     private lateinit var radioMode: RadioGroup
@@ -36,6 +38,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         switchSingle = findViewById(R.id.switch_single)
         switchLandscape = findViewById(R.id.switch_landscape)
         switchLongPress = findViewById(R.id.switch_long_press)
+        switchBt = findViewById(R.id.switch_bt)
         switchWearPause = findViewById(R.id.switch_wear_pause)
         switchWearResume = findViewById(R.id.switch_wear_resume)
         radioMode = findViewById(R.id.radio_mode)
@@ -55,6 +58,10 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         }
         switchLongPress.setOnCheckedChangeListener { _, checked ->
             Settings.swallowLongPress = checked
+        }
+        switchBt.setOnCheckedChangeListener { _, checked ->
+            Settings.btKeys = checked
+            SwipeKeyService.instance?.refreshForeground()
         }
         switchWearPause.setOnCheckedChangeListener { _, checked ->
             Settings.wearAutoPause = checked
@@ -98,6 +105,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         switchSingle.isChecked = Settings.singleTapTakeover
         switchLandscape.isChecked = Settings.landscapeDoubleTap
         switchLongPress.isChecked = Settings.swallowLongPress
+        switchBt.isChecked = Settings.btKeys
         switchWearPause.isChecked = Settings.wearAutoPause
         switchWearResume.isChecked = Settings.wearAutoResume
         radioMode.check(
