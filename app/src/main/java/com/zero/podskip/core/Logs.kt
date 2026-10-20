@@ -311,6 +311,7 @@ object Logs {
             "佩戴检测：暂停 ${onOff(Settings.wearAutoPause)} / 恢复 ${onOff(Settings.wearAutoResume)}" +
                 " / 时限 ${Settings.wearResumeWindowMs}ms"
         )
+        sb.appendLine("自动跳过广告（实验）：${onOff(Settings.adSkip)}")
         return sb.toString()
     }
 

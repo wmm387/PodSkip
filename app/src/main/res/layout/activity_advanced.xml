@@ -257,5 +257,34 @@
             android:text="摘下超过这个时间再戴上不会自动播放，避免晚上摘下、第二天戴上时突然外放。" />
         </LinearLayout>
 
+        <TextView
+            style="@style/TextSection"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:layout_marginBottom="6dp"
+            android:text="实验功能" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/switch_ad_skip"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="自动跳过广告" />
+
+        <TextView
+            style="@style/TextCaption"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="只在白名单应用内生效。开启后会读取当前界面的文字，命中「跳过广告 / 关闭 / 上滑继续观看」等特征时自动点击或上滑；出现播放器控件（倍速、选集、第X集等）时不动手，优先保证正剧不被误划。靠关键字识别，遇到认不出的广告仍会跳不过，也可能误触，建议先自己试几天。" />
+
+        <TextView
+            android:id="@+id/tv_ad_last"
+            style="@style/TextCaption"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="最近一次检测：还没有记录" />
+
     </LinearLayout>
 </ScrollView>

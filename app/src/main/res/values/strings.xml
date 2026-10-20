@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">耳机切剧</string>
     <string name="a11y_label">耳机切剧 · 按键接管</string>
-    <string name="a11y_desc">监听耳机播放、上一首、下一首按键，在短剧应用中上滑或下滑切换视频。不读取屏幕内容，不联网。</string>
+    <string name="a11y_desc">监听耳机播放、上一首、下一首按键，在短剧应用中上滑或下滑切换视频。默认不读取屏幕内容；只有手动打开「自动跳过广告（实验）」后，才会读取当前界面文字在本机判断广告，不联网、不上传。</string>
     <string name="status_on">服务已开启，可以按耳机键试试</string>
     <string name="status_off">服务未开启，点下方按钮去系统设置里打开</string>
     <string name="enable_switch">启用按键接管</string>

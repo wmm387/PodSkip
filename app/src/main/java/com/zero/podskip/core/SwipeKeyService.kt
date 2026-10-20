@@ -100,6 +100,7 @@ class SwipeKeyService : AccessibilityService() {
         Logs.d(TAG, "service created")
         Logs.startBeat()
         btKeys = BtKeys(this, { code -> onBtKey(code) }, ::shouldTakeBt)
+        adDetector = AdDetector(this) { swipe(up = true) }
         // 总开关开着就常驻前台通知，纯保活用，不参与任何应用判断
         if (Settings.enabled) goForeground()
         wearDetector = WearDetector(this, ::onHeadsetOff, ::onHeadsetOn).also { it.start() }
@@ -107,6 +108,9 @@ class SwipeKeyService : AccessibilityService() {
 
     /** 蓝牙耳机通道（静音音轨 + MediaSession），见 [BtKeys] */
     private var btKeys: BtKeys? = null
+
+    /** 广告自动跳过（实验），见 [AdDetector] */
+    private var adDetector: AdDetector? = null
 
     /** 当前是不是停在「耳机切剧」自己里面（主页、设置、按键测试页） */
     private var inSelf = false
@@ -242,6 +246,18 @@ class SwipeKeyService : AccessibilityService() {
         }
     }
 
+    /**
+     * 「自动跳过广告」开关变了：重新注册服务配置（决定要不要收内容变化事件），
+     * 关掉时顺手撤掉待执行的补扫。
+     */
+    fun onAdSkipChanged() {
+        applyA11yConfig()
+        if (!Settings.adSkip) adDetector?.cancelPending()
+    }
+
+    /** 广告检测的最近一次结论，给设置页显示 */
+    fun lastAdResult(): String = adDetector?.lastResultText().orEmpty()
+
     /** 当前是否已挂前台通知 */
     private var fgActive = false
 
@@ -354,15 +370,29 @@ class SwipeKeyService : AccessibilityService() {
     override fun onServiceConnected() {
         instance = this
         Logs.d(TAG, "service connected")
-        serviceInfo = serviceInfo.apply {
-            flags = flags or AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS
-        }
+        applyA11yConfig()
         if (Settings.enabled) goForeground()
         // 重装 / 重开无障碍时，短剧可能已经在播放了，补一次前台应用
         android.os.Handler(mainLooper).postDelayed({
             if (fgPkg.isEmpty()) trackForeground(liveWindowPkg())
             updateBtTakeover()
         }, 900)
+    }
+
+    /**
+     * 按当前功能开关注册要接收的事件类型。
+     *
+     * 内容变化事件（TYPE_WINDOW_CONTENT_CHANGED）只在「自动跳过广告」开着时才订阅：
+     * 它在播放期间一秒能来十几次，白收不用就是白耗电。关掉功能后这里会把事件类型收回去，
+     * 不需要重启无障碍服务。
+     */
+    private fun applyA11yConfig() {
+        serviceInfo = serviceInfo.apply {
+            flags = flags or AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS
+            eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
+                (if (Settings.adSkip) AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED else 0)
+        }
+        Logs.d(TAG, "a11y events=${if (Settings.adSkip) "window+content" else "window"}")
     }
 
     override fun onDestroy() {
@@ -373,12 +403,18 @@ class SwipeKeyService : AccessibilityService() {
         if (instance === this) instance = null
         wearDetector?.stop()
         wearDetector = null
+        adDetector?.cancelPending()
+        adDetector = null
         super.onDestroy()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
-        trackForeground(event.packageName?.toString().orEmpty())
+        if (event == null) return
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            trackForeground(event.packageName?.toString().orEmpty())
+        }
+        // 内容变化事件也要转发：广告检测靠它驱动，不用时检测器会自己早退
+        adDetector?.onEvent(event)
     }
 
     /**
