@@ -54,6 +54,8 @@ object KeyProbe {
         KeyEvent.KEYCODE_MEDIA_PREVIOUS -> "上一首 MEDIA_PREVIOUS"
         KeyEvent.KEYCODE_HEADSETHOOK -> "线控中键 HEADSETHOOK"
         KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> "播放/暂停 PLAY_PAUSE"
+        KeyEvent.KEYCODE_MEDIA_PLAY -> "播放 MEDIA_PLAY"
+        KeyEvent.KEYCODE_MEDIA_PAUSE -> "暂停 MEDIA_PAUSE"
         else -> "keyCode = $code"
     }
 
@@ -62,6 +64,8 @@ object KeyProbe {
         KeyEvent.KEYCODE_MEDIA_PREVIOUS -> "PREV"
         KeyEvent.KEYCODE_HEADSETHOOK -> "HOOK"
         KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> "PLAY"
+        KeyEvent.KEYCODE_MEDIA_PLAY -> "PLAY"
+        KeyEvent.KEYCODE_MEDIA_PAUSE -> "PAUSE"
         else -> "$code"
     }
 
@@ -71,7 +75,8 @@ object KeyProbe {
 
     /** 是否是耳机自带的多功能键（A 型）信号 */
     fun isDedicatedKey(code: Int): Boolean =
-        code == KeyEvent.KEYCODE_MEDIA_NEXT || code == KeyEvent.KEYCODE_MEDIA_PREVIOUS
+        code == KeyEvent.KEYCODE_MEDIA_NEXT || code == KeyEvent.KEYCODE_MEDIA_PREVIOUS ||
+            code == KeyEvent.KEYCODE_MEDIA_PLAY || code == KeyEvent.KEYCODE_MEDIA_PAUSE
 
     /**
      * 从按键序列推断合适的多击判定窗口。

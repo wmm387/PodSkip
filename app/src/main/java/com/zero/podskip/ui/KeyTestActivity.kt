@@ -119,8 +119,8 @@ class KeyTestActivity : AppCompatActivity() {
 
         advice.text = when {
             dedicated.isNotEmpty() -> {
-                "这是 A 型耳机：按下直接发 ${KeyProbe.shortName(dedicated.last().code)}，" +
-                    "双击上一个/下一个立即生效，不经过计数，也就不用管判定窗口。"
+                "收到 ${KeyProbe.shortName(dedicated.last().code)}：属于直接发媒体键的类型" +
+                    "（有线 A 型耳机或蓝牙耳机），按下立即生效，不做击数判定，不用调窗口。"
             }
 
             suggested > 0 -> {

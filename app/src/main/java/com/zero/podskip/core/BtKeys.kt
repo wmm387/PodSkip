@@ -83,7 +83,6 @@ class BtKeys(
                 } catch (_: Throwable) {
                 }
             }
-            Logs.d(TAG, "bt silent on")
         } catch (e: Throwable) {
             Logs.w(TAG, "silent audio failed: ${e.message}")
         }
@@ -100,47 +99,73 @@ class BtKeys(
         } catch (_: Throwable) {
         }
         pump = null
-        Logs.d(TAG, "bt silent off")
     }
 
     fun isTaken(): Boolean = taken
 
     fun setTakingOver(take: Boolean) {
-        try {
-            if (!take && !taken) return
-            if (take && taken) {
-                // 已经在接管，只补状态，不重复抢
+        if (take) claim() else releaseNow()
+    }
+
+    private fun claim() {
+        if (taken) {
+            // 已经在接管，只补状态，不重复抢
+            try {
                 session?.setPlaybackState(playing())
-                return
+            } catch (_: Throwable) {
             }
-            val s = ensureSession()
-            if (take) {
-                // 先出声，再声明播放：顺序反过来系统可能还认为播放器才是活跃的那个
-                startSilent()
-                if (!s.isActive) s.isActive = true
-                s.setMetadata(
-                    MediaMetadata.Builder()
-                        .putString(MediaMetadata.METADATA_KEY_TITLE, "耳机切剧")
-                        .putString(MediaMetadata.METADATA_KEY_ARTIST, "按键接管中")
-                        .build()
-                )
-                s.setPlaybackState(paused())
-                s.setPlaybackState(playing())
-                taken = true
-                uiHandler.removeCallbacks(keeper)
-                uiHandler.postDelayed(keeper, 2000L)
-                Logs.d(TAG, "bt claim active=${s.isActive} silent=${track != null}")
-            } else {
-                uiHandler.removeCallbacks(keeper)
-                s.setPlaybackState(paused())
-                if (s.isActive) s.isActive = false
-                stopSilent()
-                taken = false
-                Logs.d(TAG, "bt release")
-            }
-        } catch (e: Throwable) {
-            Logs.w(TAG, "bt session failed: ${e.message}")
+            return
         }
+        try {
+            val s = ensureSession()
+            // 先出声，再声明播放：顺序反过来系统可能还认为播放器才是活跃的那个
+            startSilent()
+            if (!s.isActive) s.isActive = true
+            s.setMetadata(
+                MediaMetadata.Builder()
+                    .putString(MediaMetadata.METADATA_KEY_TITLE, "耳机切剧")
+                    .putString(MediaMetadata.METADATA_KEY_ARTIST, "按键接管中")
+                    .build()
+            )
+            s.setPlaybackState(paused())
+            s.setPlaybackState(playing())
+            taken = true
+            tick = 0
+            uiHandler.removeCallbacks(keeper)
+            uiHandler.postDelayed(keeper, 1000L)
+            Logs.d(TAG, "bt claim active=${s.isActive} silent=${track != null}")
+        } catch (e: Throwable) {
+            // 半路失败绝不能留下还在出声的静音音轨——它会一直把自己顶成
+            // 系统认定的「媒体按键会话」，别的播放器就再也收不到播放键了
+            Logs.w(TAG, "bt claim failed: ${e.message}")
+            releaseNow()
+        }
+    }
+
+    /**
+     * 彻底让出。
+     *
+     * [taken] 只表示「逻辑上是否接管」，不能拿来当「有没有资源要清」的判据：
+     * 接管中途抛异常时可能音轨已经开出来了而 taken 还没置 true，
+     * 这种半成品状态下如果直接 return，静音音轨会一直播下去，
+     * 系统就永远把媒体键派给本应用，音乐 App 只能暂停不能播放。
+     * 所以这里无条件清理。
+     */
+    private fun releaseNow() {
+        uiHandler.removeCallbacks(keeper)
+        val had = taken || track != null || session != null
+        taken = false
+        stopSilent()
+        val s = session
+        session = null
+        if (s != null) {
+            try {
+                s.isActive = false
+                s.release()
+            } catch (_: Throwable) {
+            }
+        }
+        if (had) Logs.d(TAG, "bt release")
     }
 
     /**
@@ -158,18 +183,26 @@ class BtKeys(
         }
     }
 
-    /** 定时把自己重新变成「最近一个开始播放的应用」——短剧一换集就会把媒体键拿走 */
+    /**
+     * 定时把自己重新变成「最近一个开始播放的应用」——短剧一换集就会把媒体键拿走。
+     *
+     * 检查「还该不该接管」要勤（1 秒），否则切到音乐 App 后按键还会落空；
+     * 但重建静音音轨不必那么频繁（每 3 个 tick 一次），省得一直在开开关关音轨。
+     */
+    private var tick = 0
+
     private val keeper = object : Runnable {
         override fun run() {
             if (!taken) return
             // 蓝牙耳机拔了 / 关了开关 / 离开白名单，都在这里自动让出
             if (!stillWanted()) {
                 Logs.d(TAG, "bt auto release")
-                setTakingOver(false)
+                releaseNow()
                 return
             }
-            restartSilent()
-            uiHandler.postDelayed(this, 2000L)
+            tick++
+            if (tick % 3 == 0) restartSilent()
+            uiHandler.postDelayed(this, 1000L)
         }
     }
 
@@ -182,17 +215,7 @@ class BtKeys(
         }
     }
 
-    fun release() {
-        uiHandler.removeCallbacks(keeper)
-        stopSilent()
-        try {
-            session?.isActive = false
-            session?.release()
-        } catch (_: Throwable) {
-        }
-        session = null
-        taken = false
-    }
+    fun release() = releaseNow()
 
     private fun playing(): PlaybackState = PlaybackState.Builder()
         .setActions(

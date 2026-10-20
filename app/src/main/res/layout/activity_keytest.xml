@@ -29,7 +29,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
             android:lineSpacingExtra="3dp"
-            android:text="有线耳机接上就能识别。蓝牙耳机需要在「高级设置 → 蓝牙耳机」里开启接管，并停在白名单应用里按；蓝牙键会显示成媒体键（126/127 播放暂停、87/88 下一个/上一个），不走单击双击判定。"
+            android:text="有线耳机接上就能识别。蓝牙耳机需要在「高级设置 → 蓝牙耳机」里开启接管，并停在白名单应用里按；蓝牙键会显示成媒体键（126/127 播放暂停、87/88 下一个/上一个），不走单击双击判定。同一个键反复按可能一直显示 PAUSE，那是耳机只发这一个码，正常。"
             android:textSize="12sp" />
 
         <TextView

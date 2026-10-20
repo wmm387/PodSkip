@@ -30,6 +30,18 @@ class SwipeKeyService : AccessibilityService() {
     companion object {
         private const val TAG = "PodSkip"
 
+        /** 摘/戴耳机后等音频路由稳定再判断，避免拿旧路由上的播放状态做决定 */
+        private const val WEAR_ROUTE_SETTLE_MS = 400L
+
+        /**
+         * 戴上耳机要等更久：蓝牙重连 + A2DP 路由重建比断开慢得多，
+         * 400ms 时 isMusicActive 往往还没反映出短剧已经在播。
+         */
+        private const val WEAR_ON_SETTLE_MS = 900L
+
+        /** 戴上后的按键静默期，挡住耳机固件重连时自己补发的那一下 */
+        private const val WEAR_RESUME_GUARD_MS = 2500L
+
         /**
          * 当前运行中的服务实例。设置页/引导页改完保活开关或授予通知权限后，
          * 直接调 [refreshForeground] 立即生效，不用等下一次窗口切换。
@@ -96,12 +108,37 @@ class SwipeKeyService : AccessibilityService() {
     /** 蓝牙耳机通道（静音音轨 + MediaSession），见 [BtKeys] */
     private var btKeys: BtKeys? = null
 
+    /** 当前是不是停在「耳机切剧」自己里面（主页、设置、按键测试页） */
+    private var inSelf = false
+
     /** 蓝牙按键进来后走和有线耳机一样的动作，但**不判双击**：蓝牙耳机自己会区分单击/双击 */
     private fun onBtKey(code: Int): Boolean {
         KeyProbe.record(code)
+        // 以「现在屏幕上真正是谁」为准。inSelf 靠窗口事件维护，桌面/系统界面
+        // 不一定重发 TYPE_WINDOW_STATE_CHANGED，只用它判断会卡在 true 上再也出不来。
+        val live = liveAppPkg()
+        Logs.d(TAG, "bt key=$code fg=$fgPkg live=$live self=$inSelf")
         if (!Settings.enabled) return false
-        if (fgPkg.isEmpty()) trackForeground(liveWindowPkg())
-        if (fgPkg !in Settings.whitelist) return false
+        if (live == packageName) {
+            if (!inSelf) {
+                inSelf = true
+                updateBtTakeover()
+            }
+            return true
+        }
+        if (live.isNotEmpty()) {
+            inSelf = false
+            if (live != fgPkg) trackForeground(live)
+        } else if (inSelf) return true
+        // 用实时窗口判断白名单，别用可能过期的 fgPkg——否则在音乐 App 里按一下
+        // 会被当成短剧里的按键，往屏幕上注入一次点击
+        val target = if (live.isNotEmpty()) live else fgPkg
+        if (target !in Settings.whitelist) {
+            // 键落到了不该管的界面：立刻放手，让系统重新挑接收者，
+            // 否则用户切回音乐 App 后头几下按键还会被我们吃掉
+            btKeys?.release()
+            return false
+        }
         clearAutoPause()
         val handled = when (code) {
             KeyEvent.KEYCODE_MEDIA_NEXT ->
@@ -137,21 +174,37 @@ class SwipeKeyService : AccessibilityService() {
         btRelease = null
         if (take) {
             btKeys?.setTakingOver(true)
-        } else if (btKeys?.isTaken() == true) {
-            // 窗口事件会抖（系统弹窗、桌面、输入法），晚 2 秒再让出
-            val r = Runnable {
-                btRelease = null
-                btKeys?.setTakingOver(false)
-            }
-            btRelease = r
-            uiHandler.postDelayed(r, 2000)
+            return
         }
+        if (btKeys?.isTaken() != true) return
+        // 只留很短的防抖挡系统弹窗那一抖。以前是 2 秒，用户切到音乐 App 后
+        // 这两秒里按键还落在我们身上，表现出来就是「有延迟 / 第一下没反应」。
+        val r = Runnable {
+            btRelease = null
+            btKeys?.setTakingOver(false)
+        }
+        btRelease = r
+        uiHandler.postDelayed(r, 350)
     }
 
-    /** 接管媒体键的全部前提条件；[BtKeys] 每 2 秒会回来问一次 */
-    private fun shouldTakeBt(): Boolean =
-        Settings.btKeys && Settings.enabled &&
-            fgPkg.isNotEmpty() && fgPkg in Settings.whitelist && hasBtAudio()
+    /**
+     * 接管媒体键的全部前提条件；[BtKeys] 每 2 秒会回来问一次。
+     *
+     * 这里顺带做一次 inSelf 自检：只靠窗口事件维护会漏——从本应用退回桌面
+     * 常常不重发 TYPE_WINDOW_STATE_CHANGED，inSelf 卡在 true 就变成
+     * 「永远接管、永远不让出」，音乐 App 于是只能暂停不能播放。
+     */
+    private fun shouldTakeBt(): Boolean {
+        if (!Settings.btKeys || !Settings.enabled || !hasBtAudio()) return false
+        if (inSelf) {
+            val live = liveAppPkg()
+            if (live.isNotEmpty() && live != packageName) {
+                Logs.d(TAG, "inSelf stale (live=$live), drop")
+                inSelf = false
+            }
+        }
+        return inSelf || (fgPkg.isNotEmpty() && fgPkg in Settings.whitelist)
+    }
 
     /**
      * 当前有没有连着蓝牙音频设备（A2DP / BLE）。
@@ -178,7 +231,15 @@ class SwipeKeyService : AccessibilityService() {
     fun refreshForeground() {
         syncForeground()
         updateNotification()
-        updateBtTakeover()
+        // 手动关掉蓝牙接管要立刻让出，不能等 updateBtTakeover 那 2 秒防抖——
+        // 用户这时候多半正拿着音乐 App 试按键，晚 2 秒就是「按了没反应」
+        if (!Settings.btKeys || !Settings.enabled) {
+            btRelease?.let { uiHandler.removeCallbacks(it) }
+            btRelease = null
+            btKeys?.release()
+        } else {
+            updateBtTakeover()
+        }
     }
 
     /** 当前是否已挂前台通知 */
@@ -331,10 +392,32 @@ class SwipeKeyService : AccessibilityService() {
      * 直到拉一下通知栏再收起、重新触发短剧 App 的窗口事件才恢复。
      */
     private fun trackForeground(pkg: String) {
-        if (pkg.isEmpty() || pkg == packageName) return
+        if (pkg.isEmpty()) return
+        // 回到本应用：fgPkg 保持上一个应用不动，但媒体键继续接管，
+        // 否则「耳机按键测试」页里蓝牙耳机按了收不到任何东西
+        if (pkg == packageName) {
+            if (!inSelf) {
+                inSelf = true
+                updateBtTakeover()
+            }
+            return
+        }
         if (pkg in systemOverlays || pkg in imePkgs) return
-        if (!isUserApp(pkg) && pkg != launcherPkg) return
-        if (pkg == fgPkg) return
+        if (!isUserApp(pkg) && pkg != launcherPkg) {
+            // 系统自己的界面（控制中心、音量条、耳机音效窗口…）：不改 fgPkg，
+            // 但必须确认已经不在本应用里，否则 inSelf 会一直挂着让蓝牙接管不放手
+            if (inSelf) {
+                inSelf = false
+                updateBtTakeover()
+            }
+            return
+        }
+        val leftSelf = inSelf
+        inSelf = false
+        if (pkg == fgPkg) {
+            if (leftSelf) updateBtTakeover()
+            return
+        }
         fgPkg = pkg
         Logs.d(TAG, "fg -> $pkg")
         updateNotification()
@@ -439,6 +522,18 @@ class SwipeKeyService : AccessibilityService() {
     }
 
     /**
+     * 实时窗口包名，但把系统覆盖层（状态栏、权限框、输入法）滤掉。
+     * 它们盖在上面不代表用户离开了当前应用——不滤的话同一秒里
+     * `rootInActiveWindow` 返回 com.android.systemui，就会把 inSelf 误清成 false，
+     * 然后立刻放掉媒体键、几百毫秒后又抢回来，听起来就是「按键有一搭没一搭」。
+     */
+    private fun liveAppPkg(): String {
+        val live = liveWindowPkg()
+        if (live.isEmpty() || live in systemOverlays || live in imePkgs) return ""
+        return live
+    }
+
+    /**
      * 上一次按下是否被我们吞掉了。
      * 只有吞过按下才会去吞对应的松开——透传模式下按下已经交给系统，
      * 松开也必须交给它，否则系统会收到残缺的按键序列。
@@ -453,27 +548,54 @@ class SwipeKeyService : AccessibilityService() {
     private var autoPausedByEar = false
     private var autoPausedAt = 0L
 
+    /**
+     * 戴上耳机后的保护期。蓝牙耳机重连时固件经常自己补发一个 PLAY/PAUSE，
+     * 那一下会被当成「用户亲手按键」，把 [autoPausedByEar] 清掉，于是戴上不恢复。
+     */
+    private var wearResumeGuardUntil = 0L
+
     private fun onHeadsetOff() {
+        Logs.d(TAG, "wear off fg=$fgPkg self=$inSelf")
         if (!Settings.wearAutoPause) return
         if (!canAct()) return
-        // 本来就没在播（已经暂停/播完），再点一下反而会播起来
-        if (!isMusicActive()) return
-        autoPausedByEar = true
-        autoPausedAt = SystemClock.uptimeMillis()
-        singleTapGesture()
+        // 先让出蓝牙媒体键、停掉静音音轨。否则 AudioManager.isMusicActive()
+        // 会被我们自己那条静音音轨顶成 true，判断不出短剧到底在不在播。
+        btKeys?.setTakingOver(false)
+        // 停完立刻采样一次：再晚一点播放器可能已经自己因为路由断开暂停了，
+        // 就分不清「本来就没播」和「被系统暂停」，戴上也就不会补那一刀。
+        val wasPlaying = isMusicActive()
+        // 等音频路由稳定（蓝牙断开后声音会转到扬声器）再决定要不要补暂停
+        uiHandler.postDelayed({
+            if (!canAct()) return@postDelayed
+            val stillPlaying = isMusicActive()
+            if (!wasPlaying && !stillPlaying) return@postDelayed
+            // 摘之前确实在播，就记下「这次暂停是我造成的」——哪怕这一刀
+            // 是播放器自己因为耳机断开停的，戴上时也该由我们恢复
+            autoPausedByEar = true
+            autoPausedAt = SystemClock.uptimeMillis()
+            if (stillPlaying) singleTapGesture()
+        }, WEAR_ROUTE_SETTLE_MS)
     }
 
+    /**
+     * 戴上：先等路由稳定，判断短剧是不是已经在播（部分耳机自己会恢复），
+     * 再决定补不补那一刀；最后才恢复蓝牙接管——顺序反过来静音音轨会污染判断。
+     */
     private fun onHeadsetOn() {
-        if (!Settings.wearAutoPause || !Settings.wearAutoResume) return
-        if (!autoPausedByEar) return
-        val away = SystemClock.uptimeMillis() - autoPausedAt
-        autoPausedByEar = false
-        // 摘太久（默认超过 5 分钟）就不恢复了，免得隔夜戴上突然外放
-        if (away > Settings.wearResumeWindowMs) return
-        if (!canAct()) return
-        // 耳机自己已经恢复播放了（部分耳机摘下/戴上有自己的播放控制），别再补一刀
-        if (isMusicActive()) return
-        singleTapGesture()
+        Logs.d(TAG, "wear on autoPaused=$autoPausedByEar fg=$fgPkg")
+        wearResumeGuardUntil = SystemClock.uptimeMillis() + WEAR_RESUME_GUARD_MS
+        uiHandler.postDelayed({
+            if (autoPausedByEar && Settings.wearAutoPause && Settings.wearAutoResume) {
+                val away = SystemClock.uptimeMillis() - autoPausedAt
+                autoPausedByEar = false
+                // 摘太久（默认超过 5 分钟）就不恢复了，免得隔夜戴上突然外放
+                if (away <= Settings.wearResumeWindowMs && canAct() && !isMusicActive()) {
+                    singleTapGesture()
+                }
+            }
+            // 蓝牙断开时我们让出过媒体键，戴上后要重新评估
+            updateBtTakeover()
+        }, WEAR_ON_SETTLE_MS)
     }
 
     /** 系统当前是否有活跃的媒体流，用来判断「现在到底在不在播」 */
@@ -489,6 +611,8 @@ class SwipeKeyService : AccessibilityService() {
 
     /** 用户自己碰了耳机，就别再替他自动恢复了 */
     private fun clearAutoPause() {
+        // 耳机刚戴上的那一两秒里，按键多半是固件重连时自己补发的，不算用户意图
+        if (SystemClock.uptimeMillis() < wearResumeGuardUntil) return
         autoPausedByEar = false
     }
 
