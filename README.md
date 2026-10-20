@@ -11,7 +11,7 @@ An Android accessibility service that maps headset key presses to gestures on sh
 <img src="https://img.shields.io/badge/Android-12%2B-3ddc84" alt="Android 12+">
 
 <p align="center">
-  <img src="docs/screenshots/main.jpg" width="320" alt="PodSkip 主界面" />
+  <img src="assets/screenshot-main.jpg" width="320" alt="PodSkip 主界面" />
 </p>
 
 ## 特性
@@ -74,9 +74,9 @@ keytool -genkeypair -v -keystore keystore/podskip-release.jks -storetype JKS \
 cp keystore.properties.example keystore.properties
 #    然后改里面的 storePassword / keyPassword
 
-# 3. 构建
-./gradlew assembleRelease
-# 产物：app/build/outputs/apk/release/app-release.apk
+# 3. 构建，顺手把包收到 dist/
+./gradlew distApk
+# 产物：dist/PodSkip-0.1.0-release.apk
 ```
 
 没有 `keystore.properties` 时 release 也能编译，只是产出未签名的 APK，不会报错。
@@ -138,6 +138,17 @@ VERSION_NAME=0.1.0    # 展示用，主页底部显示 v0.1.0 (1)
 没有网络权限，不收集、不上传任何数据。无障碍服务不读取窗口内容和文字，只用 `typeWindowStateChanged` 判断前台应用包名（用于白名单）。
 
 ## 项目结构
+
+```
+.
+├── app/                    Android 应用（Gradle 模块）
+├── assets/                 README 里用到的图片
+├── dist/                   打好的安装包，不入库
+├── docs/                   设计与需求文档
+│   └── product-spec.md     产品需求与技术方案
+├── AGENTS.md               给 AI 编码助手的工作手册
+└── gradle.properties       版本号、Gradle 参数
+```
 
 ```
 app/src/main/java/com/zero/podskip/

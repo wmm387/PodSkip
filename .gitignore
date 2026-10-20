@@ -18,9 +18,13 @@ local.properties
 !debug.keystore
 keystore.properties
 
-# 产物
+# 产物：打包好的安装包统一放 dist/，只在本机留存
+dist/
 *.apk
 *.aab
 *.ap_
 *.dex
 captures/
+
+# AI 助手本地记忆与工作目录，不入库
+.workbuddy/

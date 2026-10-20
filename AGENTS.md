@@ -1,46 +1,80 @@
 # AGENTS.md
 
-给接手这个仓库的 AI 看的工作手册。项目会换目录、会换对话，靠这份文件保住上下文。
+给接手这个仓库的 AI 编码助手看的工作手册。项目会换目录、会换对话，靠这份文件保住上下文。
+
+- 给人看的说明：`README.md`
+- 需求与方案：`docs/product-spec.md`
+- 任务清单：`TODO.md`（改需求前先看，避免把已完成的又做一遍）
 
 ---
 
-## 一、这个项目是什么
+## 0. 硬约束（先读这条）
+
+1. **不要操作手机界面。** 禁止 `input tap` / `input swipe` / 截图代替用户点击。
+   `input` 系列在这台设备上经常不生效，用户已多次明确要求自己实操。
+2. 允许做的只有：`./gradlew`、`adb install -r`、`adb logcat`、`adb shell dumpsys`、`am start`、清日志、清应用数据。
+3. 需要验证界面行为时：**编译安装 → 说清楚要测哪几步 → 等用户反馈**。不要自己点。
+4. 用户说「就改这一处」就只改这一处；说「改完就结束」就不要再顺手检查/整理/美化。
+5. **不要把已经修好的 bug 改回去**，见第 6 节。
+
+---
+
+## 1. 项目是什么
 
 **PodSkip（耳机切剧）**：Android 无障碍服务，把耳机线控按键翻译成屏幕手势，用来控制短剧 App。
 单击暂停/播放、双击下一个视频、三击上一个视频。
 
-- 包名 `com.zero.podskip`，minSdk 31 / targetSdk 35，纯 Kotlin 原生视图（无 Compose）
-- 仓库 `git@github.com:wmm387/PodSkip.git`，分支 `main`
-- 目前只在 **Xiaomi 14 / Android 16 / HyperOS** 实机验证过
+| 项 | 值 |
+| --- | --- |
+| 包名 / namespace | `com.zero.podskip` |
+| 语言 | Kotlin，纯原生 View + XML，**没有 Compose** |
+| SDK | minSdk 31 / compileSdk 35 / targetSdk 35 |
+| 依赖 | 只有 `core-ktx`、`appcompat`、`material`，不引第三方库 |
+| 构建 | Gradle 8.11.1 + JDK 17，不需要 Android Studio |
+| 实机 | 只在 Xiaomi 14 / Android 16 / HyperOS 验证过 |
+| 仓库 | `git@github.com:wmm387/PodSkip.git`，分支 `main` |
 
 ---
 
-## 二、硬约束（必须先看这条）
-
-1. **不要操作手机界面**。禁止 `input tap` / `input swipe` / 截图代替用户操作。
-   `input` 系列在这台设备上经常不生效，用户已多次明确要求自己实操。
-2. 允许做的只有：`./gradlew assembleRelease`、`adb install -r`、`adb logcat`、`adb shell dumpsys`、`am start`、清日志。
-3. 需要验证界面行为时，**编译安装后让用户自己点，然后等他反馈**。不要试图自己点。
-4. 用户说「就改这一处」就只改这一处；说「改完就结束」就不要再顺手检查/整理/美化。
-5. **不要把已经修好的 bug 改回去**，见第六节。
-
----
-
-## 三、构建与安装
+## 2. 常用命令
 
 ```bash
-./gradlew assembleRelease
-adb install -r app/build/outputs/apk/release/app-release.apk
+./gradlew assembleRelease          # 只出 release 包（R8 混淆 + 资源压缩，约 2.4MB）
+./gradlew distApk                  # assembleRelease + 复制到 dist/（推荐用这个）
+adb install -r dist/PodSkip-*-release.apk
+adb logcat -c && adb logcat -d -s "PodSkip:*"                   # 看本应用日志
+adb shell dumpsys media_session | grep "Media button session"   # 查媒体键被谁接管
+adb shell dumpsys accessibility | grep -i podskip               # 查服务是否绑定
+adb shell pm clear com.zero.podskip                             # 清数据（会丢设置和白名单）
 ```
 
-- 只产出 release 包（约 2.4MB，开了 R8 minify + shrinkResources）
-- 签名信息在 `keystore.properties`（**已 gitignore，不入库**），指向 `keystore/podskip-release.jks`
-- `local.properties` 里 `sdk.dir` 指向 SDK，与项目位置无关；**项目整个文件夹可以随意移动**
-- 版本号在 `app/build.gradle.kts` 的 `versionName` / `versionCode`，主页底部固定显示
+- 版本号在根目录 `gradle.properties`（`VERSION_CODE` / `VERSION_NAME`），**只改这一处**，构建脚本和主页底部都读它。
+- `dist/` 放打好的包，不入库；`app/build/outputs/` 里那份是 Gradle 自己的中间产物。
+- 签名信息在 `keystore.properties`（已 gitignore），指向 `keystore/podskip-release.jks`；文件不存在时 release 也能编译，只是不签名。
+- `local.properties` 的 `sdk.dir` 指向 SDK，与项目位置无关，**整个文件夹可以随意移动**。
 
 ---
 
-## 四、代码结构
+## 3. 目录结构
+
+```
+.
+├── AGENTS.md                 本文件
+├── README.md                 对外说明
+├── TODO.md                   任务清单
+├── docs/product-spec.md      产品需求与技术方案
+├── assets/                   README 用图（截图、logo）
+├── dist/                     打好的 APK，不入库
+├── app/
+│   ├── build.gradle.kts      签名、混淆、版本号读取、distApk 任务
+│   └── src/main/
+│       ├── java/com/zero/podskip/
+│       └── res/              layout / values / xml / mipmap
+├── keystore/                 签名文件（jks 不入库）
+└── gradle.properties         版本号、Gradle 参数
+```
+
+源码文件职责：
 
 | 文件 | 职责 |
 | --- | --- |
@@ -48,16 +82,17 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 | `core/BtKeys.kt` | 蓝牙耳机接管：静音 `AudioTrack` + `MediaSession` 抢 AVRCP 媒体键，`keeper` 定时巡检 |
 | `core/MultiTap.kt` | 单/双/三击判定，窗口 200–600ms |
 | `core/WearDetector.kt` | 音频设备增删 → 摘/戴耳机事件 |
-| `core/Logs.kt` | 按天日志、过期清理、导出 |
+| `core/AppUsageTracker.kt` | 最近前台应用 |
+| `core/Logs.kt` | 按天日志、过期清理、诊断日志导出 |
 | `core/KeyProbe.kt` | 按键记录，给「耳机按键测试」页显示 |
 | `Settings.kt` | 全部偏好项与默认值 |
 | `ui/` | 主页、引导页、设置页、高级设置、白名单、按键测试 |
-| `README.md` | 对外说明 |
-| `TODO.md` | 项目任务清单，改需求先看这里 |
+
+新页面照 `ui/GestureSettingsActivity.kt` 的结构抄；新机制照 `core/BtKeys.kt` 的写法（单一职责类 + `Logs` 打点）。
 
 ---
 
-## 五、必须理解的三个机制
+## 4. 必须理解的三个机制
 
 ### 1. 蓝牙耳机按键收不到（为什么要有 BtKeys）
 
@@ -71,6 +106,7 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 Settings.btKeys && Settings.enabled && hasBtAudio() && (inSelf || fgPkg 在白名单)
 ```
+
 任何一条不满足都要**彻底释放**：停音轨 + `session.release()` + 置 null。
 
 ### 3. `inSelf` 是「用户正停在本应用里」
@@ -81,7 +117,18 @@ Settings.btKeys && Settings.enabled && hasBtAudio() && (inSelf || fgPkg 在白�
 
 ---
 
-## 六、踩过的坑（不要改回去）
+## 5. 不要做的事
+
+- 不引入 Compose、第三方库、新的网络/统计 SDK；体积和「零联网」是卖点。
+- 不加 `INTERNET` 权限，不读取窗口内容或文字（只用 `typeWindowStateChanged` 取包名），README 对外承诺过。
+- 不改包名、`applicationId`、无障碍服务类名；改了等于换应用，用户设置全丢。
+- 不动签名文件与签名配置；换签名会导致无法覆盖安装。
+- 不用 `displayMetrics` 算注入坐标，用 `WindowManager.currentWindowMetrics.bounds`（见第 6 节）。
+- 不删 `W/beat` 心跳日志，那是抓「进程被冻结」的唯一线索。
+
+---
+
+## 6. 踩过的坑（不要改回去）
 
 | 现象 | 真因 | 修法 |
 | --- | --- | --- |
@@ -92,33 +139,47 @@ Settings.btKeys && Settings.enabled && hasBtAudio() && (inSelf || fgPkg 在白�
 | 按键一搭没一搭、反复抢放 | `rootInActiveWindow` 有时返回 `com.android.systemui`，被误判成离开当前应用 | `liveAppPkg()` 过滤系统覆盖层 |
 | 戴上耳机不恢复播放 | ①自己的静音音轨把 `isMusicActive()` 顶成 true；②摘下瞬间播放器已自己暂停，被误判「本来就没播」 | 先停音轨再判断；摘下时**停完音轨立刻采样一次** `wasPlaying`；戴上等 900ms + 2.5s 静音期挡固件自动补发的键 |
 | 短剧换集后媒体键被抢回去 | 新音轨 `start` 后系统改判给播放器 | `keeper` 定时 `restartSilent()`，按键后 `reclaim()` 再补两次 |
+| 滑动落点偏移 | 用了 `displayMetrics`，部分机型不含导航栏 | 改用 `currentWindowMetrics.bounds` |
 
 ---
 
-## 七、改完怎么验证
+## 7. 改完怎么验证
 
-1. `./gradlew assembleRelease && adb install -r ...`
-2. `adb logcat -c` 清空
-3. 让用户按指定步骤操作（说清楚测哪几步）
-4. `adb logcat -d -s "PodSkip:*"` 看事件；必要时 `adb shell dumpsys media_session | grep "Media button session"`
-5. 用户确认后才提交
+1. `./gradlew distApk`
+2. `adb install -r dist/PodSkip-*-release.apk`
+3. `adb logcat -c` 清空
+4. 让用户按指定步骤操作（说清楚测哪几步，别让他猜）
+5. `adb logcat -d -s "PodSkip:*"` 看事件；必要时 `adb shell dumpsys media_session | grep "Media button session"`
+6. 用户确认后才提交
 
 `dumpsys media_session` 是排查媒体键问题的关键：
 如果 `Media button session is com.zero.podskip/...` 还挂着，说明我们没让出干净。
 
 ---
 
-## 八、发版
+## 8. 发版
 
-1. 改 `app/build.gradle.kts` 的 `versionCode`（+1）和 `versionName`
-2. `./gradlew assembleRelease`
+1. 改 `gradle.properties` 的 `VERSION_CODE`（每次 +1，否则装不上）和 `VERSION_NAME`
+2. `./gradlew distApk`
 3. `git add -A && git commit && git push origin main`
 4. **GitHub Release 和 APK 上传由用户自己在网页操作**，不要代劳
 
 ---
 
-## 九、日志
+## 9. 日志
 
 - 按天分文件 `filesDir/logs/podskip-yyyyMMdd.log`，保留 3 天，单文件 512KB 滚动覆盖最旧一半
 - 导出只取**最近 3 小时**，导出前有确认弹窗
 - 主线程有 3 秒心跳，迟到超过 1.5 秒会记一行 `W/beat`，用来抓「进程被冻结」
+
+---
+
+## 10. 项目搬过家
+
+用户会移动整个项目文件夹。构建前如果当前目录不是这个仓库，先找：
+
+```bash
+find ~ -maxdepth 4 -type d -name podskip 2>/dev/null | head
+```
+
+项目内全是相对路径，移动后不用改任何配置（别放 iCloud/同步盘，Gradle 文件锁会失败）。

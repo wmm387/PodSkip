@@ -3,7 +3,7 @@
 > 用这份清单跟踪 PodSkip 的进度。已完成的不删，方便回看当初为什么这么做；
 > 新增需求直接加到「待办」，做完挪到「已完成」并把日期补上。
 
-当前版本：`0.1.0`（`versionCode 1`，见 `app/build.gradle.kts`）
+当前版本：`0.1.0`（`versionCode 1`，见根目录 `gradle.properties`）
 
 ---
 

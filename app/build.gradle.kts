@@ -72,3 +72,18 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
 }
+
+// 打好的安装包统一收到仓库根目录的 dist/，文件名带版本号，
+// 免得在 app/build/outputs/ 下面翻。用例：./gradlew distApk
+val distApkName = "PodSkip-${providers.gradleProperty("VERSION_NAME").get()}-release.apk"
+
+tasks.register<Copy>("distApk") {
+    group = "build"
+    description = "构建 release 包并复制到根目录 dist/"
+    dependsOn("assembleRelease")
+    from(layout.buildDirectory.dir("outputs/apk/release")) {
+        include("*.apk")
+    }
+    into(rootProject.layout.projectDirectory.dir("dist"))
+    rename { distApkName }
+}
