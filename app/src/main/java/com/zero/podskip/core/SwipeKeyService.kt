@@ -213,6 +213,10 @@ class SwipeKeyService : AccessibilityService() {
             flags = flags or AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS
         }
         if (Settings.enabled) goForeground()
+        // 重装 / 重开无障碍时，短剧可能已经在播放了，补一次前台应用
+        android.os.Handler(mainLooper).postDelayed({
+            if (fgPkg.isEmpty()) trackForeground(liveWindowPkg())
+        }, 900)
     }
 
     override fun onDestroy() {
@@ -285,14 +289,7 @@ class SwipeKeyService : AccessibilityService() {
         }
 
         // 服务刚连上、还没收到过窗口事件时补一次，否则「打开 App 直接按」会被挡掉
-        if (fgPkg.isEmpty()) {
-            val live = try {
-                rootInActiveWindow?.packageName?.toString().orEmpty()
-            } catch (_: Throwable) {
-                ""
-            }
-            trackForeground(live)
-        }
+        if (fgPkg.isEmpty()) trackForeground(liveWindowPkg())
 
         if (fgPkg !in Settings.whitelist) {
             Logs.d(TAG, "skip pkg=$fgPkg")
@@ -303,44 +300,54 @@ class SwipeKeyService : AccessibilityService() {
         // 用户亲手按了耳机键，说明他自己在控制播放，撤销「摘下自动暂停」的标记
         clearAutoPause()
 
-        return when (event.keyCode) {
-            KeyEvent.KEYCODE_MEDIA_NEXT -> {
-                if (Settings.mode == Mode.COUNT) {
-                    false
-                } else {
-                    swipe(up = true)
-                    true
-                }
-            }
+        val handled = perform(event.keyCode)
+        if (handled) swallowChain = true
+        return handled
+    }
 
-            KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
-                if (Settings.mode == Mode.COUNT) {
-                    false
-                } else {
-                    swipe(up = false)
-                    true
-                }
+    /**
+     * 按键 → 手势。有线耳机（无障碍按键）和蓝牙耳机（MediaSession）两条通道共用，
+     * 保证同一副耳机换个连接方式行为不变。
+     */
+    private fun perform(code: Int): Boolean = when (code) {
+        KeyEvent.KEYCODE_MEDIA_NEXT -> {
+            if (Settings.mode == Mode.COUNT) false else {
+                swipe(up = true)
+                true
             }
-
-            KeyEvent.KEYCODE_HEADSETHOOK, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                if (Settings.mode == Mode.PASSTHROUGH || !Settings.singleTapTakeover) {
-                    false
-                } else {
-                    MultiTap.feed(Settings.tapWindowMs) { tap ->
-                        Logs.d(TAG, "tap=$tap")
-                        when (tap) {
-                            Tap.SINGLE -> singleTapGesture()
-                            Tap.DOUBLE -> swipe(up = true)
-                            Tap.TRIPLE -> swipe(up = false)
-                        }
-                    }
-                    swallowChain = true
-                    true
-                }
-            }
-
-            else -> false
         }
+
+        KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
+            if (Settings.mode == Mode.COUNT) false else {
+                swipe(up = false)
+                true
+            }
+        }
+
+        KeyEvent.KEYCODE_HEADSETHOOK, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+            if (Settings.mode == Mode.PASSTHROUGH || !Settings.singleTapTakeover) {
+                false
+            } else {
+                MultiTap.feed(Settings.tapWindowMs) { tap ->
+                    Logs.d(TAG, "tap=$tap")
+                    when (tap) {
+                        Tap.SINGLE -> singleTapGesture()
+                        Tap.DOUBLE -> swipe(up = true)
+                        Tap.TRIPLE -> swipe(up = false)
+                    }
+                }
+                true
+            }
+        }
+
+        else -> false
+    }
+
+    /** 服务刚连上、还没收到窗口事件时的兜底：直接问窗口现在是谁 */
+    private fun liveWindowPkg(): String = try {
+        rootInActiveWindow?.packageName?.toString().orEmpty()
+    } catch (_: Throwable) {
+        ""
     }
 
     /**

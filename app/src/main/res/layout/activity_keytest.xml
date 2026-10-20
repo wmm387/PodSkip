@@ -25,6 +25,14 @@
             android:textSize="13sp" />
 
         <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:lineSpacingExtra="3dp"
+            android:text="只适用于有线耳机（3.5mm、Type-C 转接）和少数能切到 HID 键盘模式的蓝牙耳机。普通蓝牙耳机的按键走 AVRCP 直接交给正在播放的应用，系统不产生按键事件，本应用收不到，这里按了也会一直显示「等待按键…」。"
+            android:textSize="12sp" />
+
+        <TextView
             android:id="@+id/probe_big"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

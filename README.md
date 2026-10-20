@@ -1,8 +1,8 @@
 # PodSkip · 耳机切剧
 
-用耳机线控/蓝牙耳机的按键控制短剧 App，不用掏手机：**单击暂停/播放，双击下一个视频，三击上一个视频**。
+用耳机线控按键控制短剧 App，不用掏手机：**单击暂停/播放，双击下一个视频，三击上一个视频**。
 
-An Android accessibility service that maps wired/Bluetooth headset key presses to gestures on short-drama apps.
+An Android accessibility service that maps headset key presses to gestures on short-drama apps.
 
 > 仅支持 Android 12+（minSdk 31），在 Xiaomi 14 / HyperOS（Android 16）上实机验证。
 
@@ -118,6 +118,7 @@ VERSION_NAME=0.1.0    # 展示用，主页底部显示 v0.1.0 (1)
 
 ## 已知限制
 
+- **普通蓝牙耳机用不了**：蓝牙按键走 AVRCP，由系统直接派给「正在播放的那个应用的媒体会话」，全程不产生 `KeyEvent`，无障碍服务看不到。实测（Xiaomi 14 / HyperOS）即使本应用持有 `STATE_PLAYING` 的 MediaSession，按键仍被投给播放器自己的会话，第三方应用没有合法途径拦截。**只支持有线耳机（3.5mm、Type-C 转接）和少数能切到 HID 键盘模式的蓝牙耳机。**
 - **单击有 0.4 秒左右的延迟**：单键耳机三种击法都发同一个键码，必须等判定窗口结束才能确定是单击还是双击的开始。硬件层面的限制，无法消除。
 - **单击是注入屏幕点击**：播放器必须响应点击才能暂停；个别播放器把单击完全吃掉时，可关掉「单击接管」让它自己处理（此时双击/三击失效）。
 - **佩戴检测不是真的入耳检测**：Android 没有公开的入耳状态 API，实现依赖「音频输出设备断开」。有线拔出、蓝牙断开、摘下即断连的耳机能触发；**只摘一只、蓝牙仍连着的 TWS 检测不到**。
